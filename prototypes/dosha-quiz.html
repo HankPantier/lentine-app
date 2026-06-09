@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Discover Your Dosha — Lentine Alexis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<!-- Mulish: closest free match to the site's Galano Classic (per design system) -->
+<link href="https://fonts.googleapis.com/css2?family=Mulish:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    /* Palette (from raw/lentine-alexis-design-system.md) */
+    --color-blue: #000033;
+    --color-gray: #E7E7E7;
+    --color-taupe: #f4f0ec;
+    --color-white: #ffffff;
+    --color-blue-bright: #0099B1;
+    --color-blue-light: #3FBECC;
+    --color-red: #EF2107;
+    --color-orange: #FF9700;
+    --color-green: #26A709;
+
+    /* Per-dosha accents (restrained: element-led) */
+    --vata: #3FBECC;   /* air + space  → teal/light  */
+    --pitta: #FF9700;  /* fire + water → orange      */
+    --kapha: #26A709;  /* earth + water → green       */
+
+    --font-sans: "Mulish", "Galano Classic", sans-serif;
+    --site-line-height: 1.8;
+    --button-radius: 0.3rem;
+    --ease: 333ms ease-in-out;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-sans);
+    font-weight: 400;
+    font-size: 1rem;
+    color: var(--color-blue);
+    background: var(--color-taupe);
+    line-height: var(--site-line-height);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .stage {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 3% 1.25rem 4rem;
+  }
+
+  .wrap {
+    width: 100%;
+    max-width: 46rem;
+  }
+
+  /* ---- Type ---- */
+  h1, h2, h3, h4 { margin: 0; font-weight: 400; letter-spacing: -0.01em; }
+  h1 { font-size: 3rem; line-height: 1.1; }
+  h2 { font-size: 2.1rem; line-height: 1.15; }
+  h3 { font-size: 1.5rem; }
+  p { line-height: var(--site-line-height); }
+
+  .eyebrow {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-style: italic;
+    color: var(--color-blue-bright);
+    margin: 0 0 1rem;
+    display: block;
+  }
+
+  .lede { font-size: 1.15rem; max-width: 34rem; }
+  .muted { color: rgba(0,0,51,0.62); }
+
+  /* ---- Buttons ---- */
+  .btn {
+    appearance: none;
+    background: var(--color-blue);
+    border: 2px solid var(--color-blue);
+    color: var(--color-white);
+    font-family: var(--font-sans);
+    font-size: 0.8rem;
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    padding: 0.75rem 1.6rem 0.65rem;
+    border-radius: var(--button-radius);
+    cursor: pointer;
+    transition: all var(--ease);
+    text-decoration: none;
+    display: inline-block;
+  }
+  .btn:hover:not(:disabled) { background: var(--color-blue-light); border-color: var(--color-blue-light); }
+  .btn:disabled { opacity: 0.32; cursor: not-allowed; }
+
+  .btn--ghost {
+    background: transparent;
+    color: var(--color-blue);
+  }
+  .btn--ghost:hover:not(:disabled) { background: transparent; border-color: var(--color-blue-light); color: var(--color-blue-light); }
+
+  .btn--important { background: var(--color-orange); border-color: var(--color-orange); }
+  .btn--important:hover:not(:disabled) { background: var(--color-blue-light); border-color: var(--color-blue-light); }
+
+  .btn-row { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-top: 2.5rem; }
+  .spacer { flex: 1; }
+
+  /* ---- Screens ---- */
+  .screen { display: none; animation: fade var(--ease); }
+  .screen.active { display: block; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  /* ---- Intro ---- */
+  .intro-card {
+    background: var(--color-white);
+    border: 1px solid var(--color-gray);
+    padding: 2.5rem;
+    margin-top: 2rem;
+  }
+  .note {
+    border-left: 3px solid var(--color-blue-light);
+    padding: 0.25rem 0 0.25rem 1.1rem;
+    margin: 1.75rem 0 0;
+    font-size: 0.95rem;
+  }
+  .note strong { font-style: italic; }
+
+  /* ---- Dosha trio (learn) ---- */
+  .trio { display: grid; gap: 1rem; margin-top: 2rem; }
+  @media (min-width: 720px) { .trio { grid-template-columns: repeat(3, 1fr); } }
+  .dosha-card {
+    background: var(--color-white);
+    border: 1px solid var(--color-gray);
+    border-top: 4px solid var(--accent, var(--color-blue));
+    padding: 1.5rem;
+  }
+  .dosha-card h3 { margin-bottom: 0.15rem; }
+  .dosha-card .elements { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.16em; color: var(--accent); font-style: italic; }
+  .dosha-card .governs { font-size: 0.95rem; margin: 0.75rem 0 0.5rem; }
+  .dosha-card p { font-size: 0.9rem; margin: 0.5rem 0 0; }
+  .tag { display: inline-block; font-size: 0.62rem; letter-spacing: 0.14em; text-transform: uppercase; background: var(--color-taupe); padding: 0.2rem 0.5rem; margin-top: 1rem; }
+
+  /* ---- Progress ---- */
+  .progress { margin: 0 0 2rem; }
+  .progress-meta { display: flex; justify-content: space-between; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.16em; margin-bottom: 0.6rem; }
+  .progress-track { height: 3px; background: var(--color-gray); width: 100%; }
+  .progress-fill { height: 3px; background: var(--color-blue-light); width: 0; transition: width var(--ease); }
+
+  /* ---- Question ---- */
+  .q-text { margin-bottom: 1.75rem; }
+  .options { display: grid; gap: 0.75rem; }
+  .option {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.9rem;
+    width: 100%;
+    text-align: left;
+    background: var(--color-white);
+    border: 1px solid var(--color-gray);
+    padding: 1.1rem 1.25rem;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    color: var(--color-blue);
+    line-height: 1.5;
+    transition: all var(--ease);
+  }
+  .option:hover { border-color: var(--color-blue-light); }
+  .option.selected { border-color: var(--color-blue); box-shadow: inset 0 0 0 1px var(--color-blue); }
+  .option .dot {
+    flex: 0 0 auto;
+    width: 18px; height: 18px;
+    border: 1px solid var(--color-blue);
+    border-radius: 50%;
+    margin-top: 3px;
+    position: relative;
+    transition: all var(--ease);
+  }
+  .option.selected .dot { background: var(--color-blue); }
+  .option.selected .dot::after {
+    content: ""; position: absolute; inset: 4px;
+    background: var(--color-white); border-radius: 50%;
+  }
+
+  /* ---- Results ---- */
+  .result-hero { text-align: center; padding: 1rem 0 0.5rem; }
+  .result-hero .primary-name {
+    font-size: 4rem; line-height: 1; color: var(--accent, var(--color-blue));
+    margin: 0.5rem 0 0.25rem;
+  }
+  .result-hero .elements { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.2em; font-style: italic; color: var(--accent); }
+  .result-body {
+    background: var(--color-white);
+    border: 1px solid var(--color-gray);
+    border-top: 4px solid var(--accent, var(--color-blue));
+    padding: 2rem;
+    margin-top: 2rem;
+  }
+  .result-body h3 { margin-top: 1.5rem; }
+  .result-body h3:first-child { margin-top: 0; }
+  .result-body ul { margin: 0.5rem 0 0; padding-left: 1.1rem; }
+  .result-body li { line-height: 1.6; margin-bottom: 0.25rem; }
+
+  .tally { display: grid; gap: 0.6rem; margin-top: 1.25rem; }
+  .tally-row { display: grid; grid-template-columns: 5rem 1fr 2.5rem; align-items: center; gap: 0.75rem; font-size: 0.85rem; }
+  .tally-label { text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.7rem; }
+  .bar { height: 8px; background: var(--color-gray); position: relative; }
+  .bar span { position: absolute; left: 0; top: 0; bottom: 0; background: var(--bar, var(--color-blue)); transition: width var(--ease); }
+
+  .codenote {
+    margin-top: 2rem; padding: 1.25rem 1.5rem;
+    background: var(--color-blue); color: var(--color-white);
+    font-size: 0.92rem;
+  }
+  .codenote .eyebrow { color: var(--color-blue-light); margin-bottom: 0.5rem; }
+  .codenote code { background: rgba(255,255,255,0.12); padding: 0.05rem 0.4rem; font-style: normal; }
+
+  .disclaimer {
+    margin-top: 1.5rem; font-size: 0.82rem; color: rgba(0,0,51,0.6);
+    border-top: 1px solid var(--color-gray); padding-top: 1.25rem;
+  }
+
+  .footer-stamp { margin-top: 3rem; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.18em; color: rgba(0,0,51,0.4); text-align: center; }
+
+  .link { color: var(--color-blue-bright); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+  .link:hover { color: var(--color-blue-light); }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="wrap">
+
+    <!-- ============ INTRO ============ -->
+    <section class="screen active" id="screen-intro">
+      <span class="eyebrow">Lentine Alexis · Ayurveda</span>
+      <h1>Discover your dosha.</h1>
+      <div class="intro-card">
+        <p class="lede" style="margin-top:0;">Ayurveda says everything in the universe is woven from three energies — and so are you. Your unique blend is your <em>constitution</em>. This short quiz finds the one that leads.</p>
+        <p class="muted" style="font-size:0.95rem;">It takes about two minutes. There are no right answers — choose what's been most true across your life, not just today.</p>
+        <div class="note">
+          <strong>What we're measuring:</strong> your <em>prakriti</em> — the natural fingerprint you were born with — not your mood or symptoms in this moment. Think of it as your baseline, not a diagnosis.
+        </div>
+        <div class="btn-row">
+          <button class="btn btn--important" onclick="startQuiz()">Begin the quiz</button>
+          <button class="btn btn--ghost" onclick="show('screen-learn')">Meet the three doshas</button>
+        </div>
+      </div>
+      <p class="footer-stamp">Prototype · Dosha quiz v0.1</p>
+    </section>
+
+    <!-- ============ LEARN ============ -->
+    <section class="screen" id="screen-learn">
+      <span class="eyebrow">The Building Blocks</span>
+      <h2>Vata, Pitta &amp; Kapha</h2>
+      <p class="lede muted">Every person, plant, season, and storm carries all three doshas in its own proportion. A river holds more kapha; a windswept summit, more vata; a wildfire, more pitta. In the body, they keep us moving, transforming, and holding steady — together.</p>
+      <div class="trio">
+        <div class="dosha-card" style="--accent: var(--vata);">
+          <span class="elements">Air + Space</span>
+          <h3>Vata</h3>
+          <p class="governs"><strong>Governs movement.</strong></p>
+          <p>Vata is the force that sets everything in motion — the heartbeat, the breath, the flow of thought and digestion. Vata people tend to be creative, quick, and full of energy. Out of balance, vata turns to dryness, restlessness, anxiety, and irregular digestion.</p>
+        </div>
+        <div class="dosha-card" style="--accent: var(--pitta);">
+          <span class="elements">Fire + Water</span>
+          <h3>Pitta</h3>
+          <p class="governs"><strong>Governs transformation.</strong></p>
+          <p>Pitta turns food into nourishment and what we see into ideas and emotions — the fire that transforms. Pitta types are focused, ambitious, sharp, and warm. Out of balance, pitta runs hot: inflammation, acidity, and irritability.</p>
+        </div>
+        <div class="dosha-card" style="--accent: var(--kapha);">
+          <span class="elements">Earth + Water</span>
+          <h3>Kapha</h3>
+          <p class="governs"><strong>Governs structure.</strong></p>
+          <p>Kapha is the very shape of the body and the cushion that steadies us — the calm of a deep river or a stand of trees. Kapha people are strong, grounded, calm, and loyal. In excess, kapha becomes heaviness, lethargy, and congestion.</p>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn--important" onclick="startQuiz()">Take the quiz</button>
+        <button class="btn btn--ghost" onclick="show('screen-intro')">Back</button>
+      </div>
+    </section>
+
+    <!-- ============ QUIZ ============ -->
+    <section class="screen" id="screen-quiz">
+      <div class="progress">
+        <div class="progress-meta">
+          <span id="q-counter">Question 1 of 12</span>
+          <span id="q-eyebrow">Constitution</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+      </div>
+      <span class="eyebrow" id="q-category">Body</span>
+      <h2 class="q-text" id="q-text">Question</h2>
+      <div class="options" id="options"></div>
+      <div class="btn-row">
+        <button class="btn btn--ghost" id="back-btn" onclick="prevQuestion()">Back</button>
+        <span class="spacer"></span>
+        <button class="btn" id="next-btn" onclick="nextQuestion()" disabled>Next</button>
+      </div>
+    </section>
+
+    <!-- ============ RESULTS ============ -->
+    <section class="screen" id="screen-results">
+      <div class="result-hero" id="result-hero">
+        <span class="eyebrow">Your leading dosha</span>
+        <div class="primary-name" id="primary-name">Vata</div>
+        <span class="elements" id="primary-elements">Air + Space</span>
+      </div>
+
+      <div class="result-body" id="result-body"><!-- filled by JS --></div>
+
+      <div class="codenote">
+        <span class="eyebrow">How this personalizes your library</span>
+        <div id="code-line">Because <em>Vata</em> leads your constitution, the app will surface recipes and practices chosen for Vata first — and layer in seasonal guidance, like cooling Pitta content for everyone in high summer.</div>
+      </div>
+
+      <div class="tally">
+        <div class="tally-row" style="--bar: var(--vata);"><span class="tally-label">Vata</span><div class="bar"><span id="bar-vata"></span></div><span id="num-vata">0</span></div>
+        <div class="tally-row" style="--bar: var(--pitta);"><span class="tally-label">Pitta</span><div class="bar"><span id="bar-pitta"></span></div><span id="num-pitta">0</span></div>
+        <div class="tally-row" style="--bar: var(--kapha);"><span class="tally-label">Kapha</span><div class="bar"><span id="bar-kapha"></span></div><span id="num-kapha">0</span></div>
+      </div>
+
+      <p class="disclaimer">
+        This reflects your <em>prakriti</em> — your natural constitution — and is a starting point for personalizing content, not a medical diagnosis or a read on your current state (<em>vikriti</em>). Ayurveda is best explored with guidance; please don't self-treat based on this result alone.
+      </p>
+
+      <div class="btn-row">
+        <button class="btn" onclick="restart()">Retake the quiz</button>
+        <button class="btn btn--ghost" onclick="show('screen-learn')">Read about the doshas</button>
+      </div>
+      <p class="footer-stamp">Prototype · Dosha quiz v0.1 · primary-dosha filtering only</p>
+    </section>
+
+  </div>
+</div>
+
+<script>
+/* ------------------------------------------------------------------
+   DOSHA QUIZ — proof-of-concept
+   Output: a single PRIMARY dosha (vata=1, pitta=2, kapha=3).
+   Measures prakriti (constitution), not vikriti (current state).
+   Question data is intentionally easy to edit/iterate.
+-------------------------------------------------------------------*/
+
+const QUESTIONS = [
+  { cat: "Body", q: "When you think about your natural build, which fits best?",
+    a: [
+      { t: "Lean and light — I find it hard to gain weight or muscle.", d: "vata" },
+      { t: "Medium and athletic — I build and lose fairly easily.", d: "pitta" },
+      { t: "Solid and sturdy — I gain weight easily and hold it.", d: "kapha" },
+    ]},
+  { cat: "Skin", q: "My skin tends to be…",
+    a: [
+      { t: "Dry, thin, and cool — it chaps in winter.", d: "vata" },
+      { t: "Warm and sensitive — quick to flush, freckle, or break out.", d: "pitta" },
+      { t: "Thick, smooth, and a little oily — slow to wrinkle.", d: "kapha" },
+    ]},
+  { cat: "Hair", q: "My hair is most often…",
+    a: [
+      { t: "Dry, fine, and prone to frizz or split ends.", d: "vata" },
+      { t: "Fine and soft — early to gray, thin, or run reddish.", d: "pitta" },
+      { t: "Thick, heavy, and lustrous — sometimes wavy or oily.", d: "kapha" },
+    ]},
+  { cat: "Appetite", q: "My appetite and digestion are…",
+    a: [
+      { t: "Irregular — I forget to eat, then feel gassy or bloated.", d: "vata" },
+      { t: "Strong and sharp — I get irritable if I skip a meal.", d: "pitta" },
+      { t: "Steady but slow — I can skip meals easily and feel heavy after eating.", d: "kapha" },
+    ]},
+  { cat: "Energy", q: "My energy through the day looks like…",
+    a: [
+      { t: "Bursts of activity, then I run out and crash.", d: "vata" },
+      { t: "Intense and driven — I push hard toward a goal.", d: "pitta" },
+      { t: "Steady and enduring — slow to start, hard to stop.", d: "kapha" },
+    ]},
+  { cat: "Sleep", q: "My sleep is usually…",
+    a: [
+      { t: "Light and easily interrupted — my mind keeps going.", d: "vata" },
+      { t: "Moderate — I sleep fine but wake warm or alert.", d: "pitta" },
+      { t: "Deep and long — I love sleep and am slow to wake.", d: "kapha" },
+    ]},
+  { cat: "Mind", q: "The way I learn and remember is…",
+    a: [
+      { t: "Quick to learn, quick to forget.", d: "vata" },
+      { t: "Sharp and precise — I grasp things and retain them.", d: "pitta" },
+      { t: "Slower to learn, but I rarely forget.", d: "kapha" },
+    ]},
+  { cat: "Under Pressure", q: "When I'm stressed, I tend to become…",
+    a: [
+      { t: "Anxious, worried, and scattered.", d: "vata" },
+      { t: "Irritable, intense, and critical.", d: "pitta" },
+      { t: "Quiet and withdrawn — I'd rather avoid it.", d: "kapha" },
+    ]},
+  { cat: "Weather", q: "The weather that throws me off most is…",
+    a: [
+      { t: "Cold, dry, and windy.", d: "vata" },
+      { t: "Hot and humid.", d: "pitta" },
+      { t: "Cold, damp, and gray.", d: "kapha" },
+    ]},
+  { cat: "Pace", q: "My natural pace — how I move, walk, and talk — is…",
+    a: [
+      { t: "Quick and lively — fast walker, fast talker.", d: "vata" },
+      { t: "Purposeful and determined.", d: "pitta" },
+      { t: "Slow, graceful, and unhurried.", d: "kapha" },
+    ]},
+  { cat: "Spending", q: "With money, I'm most likely to…",
+    a: [
+      { t: "Spend on a whim — it comes and goes.", d: "vata" },
+      { t: "Spend deliberately on quality and things that perform.", d: "pitta" },
+      { t: "Save steadily and hold onto what I have.", d: "kapha" },
+    ]},
+  { cat: "At My Best", q: "When I feel most like myself, others would call me…",
+    a: [
+      { t: "Creative, enthusiastic, and full of ideas.", d: "vata" },
+      { t: "Focused, confident, and warm.", d: "pitta" },
+      { t: "Calm, steady, and deeply loyal.", d: "kapha" },
+    ]},
+];
+
+const DOSHA = {
+  vata: {
+    name: "Vata", code: 1, elements: "Air + Space", accent: "var(--vata)",
+    governs: "Governs movement",
+    blurb: "Vata is the force that sets everything in motion — the breath, the heartbeat, the flow of thought and digestion. When it leads your constitution, you tend to move through the world quickly and creatively.",
+    balanced: ["Creative and imaginative", "Energetic and lively", "Quick-thinking and adaptable", "Enthusiastic — first to try something new"],
+    imbalanced: ["Dry skin, hair, or digestion", "Restlessness and difficulty settling", "Anxiety or scattered focus", "Irregular appetite, sleep, and routine"],
+    care: "Vata craves warmth, moisture, and rhythm. Warm cooked meals, healthy oils, gentle routine, and early nights bring it back to center.",
+  },
+  pitta: {
+    name: "Pitta", code: 2, elements: "Fire + Water", accent: "var(--pitta)",
+    governs: "Governs transformation",
+    blurb: "Pitta is the fire that transforms — turning food into nourishment and what you see into ideas and emotions. When it leads, you bring focus, drive, and a sharp, discerning mind.",
+    balanced: ["Focused and goal-oriented", "Sharp, clear thinker", "Confident and courageous", "Warm and naturally a leader"],
+    imbalanced: ["Heat — inflammation, acidity, or rashes", "Irritability, impatience, or a critical edge", "Burnout from pushing too hard", "Trouble cooling down, in body or mind"],
+    care: "Pitta thrives on cooling and ease. Fresh foods, time in nature, and stepping back from the to-do list keep its fire steady rather than scorching.",
+  },
+  kapha: {
+    name: "Kapha", code: 3, elements: "Earth + Water", accent: "var(--kapha)",
+    governs: "Governs structure",
+    blurb: "Kapha is the cushion and the shape — the steady ground beneath you, like a deep river or a stand of trees. When it leads, you bring calm, strength, and a loyal, loving steadiness.",
+    balanced: ["Calm, grounded, and patient", "Strong and enduring", "Loving, loyal, and supportive", "Steady under pressure"],
+    imbalanced: ["Heaviness, lethargy, or sluggishness", "Congestion or holding onto fluid", "Resistance to change", "Slow digestion and weight that won't budge"],
+    care: "Kapha needs stimulation and lightness. Movement, warm and spiced foods, and a little novelty keep it from settling into heaviness.",
+  },
+};
+
+let current = 0;
+const answers = new Array(QUESTIONS.length).fill(null); // each entry: 'vata' | 'pitta' | 'kapha'
+
+function show(id) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function startQuiz() {
+  current = 0;
+  show("screen-quiz");
+  renderQuestion();
+}
+
+function renderQuestion() {
+  const Q = QUESTIONS[current];
+  const total = QUESTIONS.length;
+  document.getElementById("q-counter").textContent = `Question ${current + 1} of ${total}`;
+  document.getElementById("q-category").textContent = Q.cat;
+  document.getElementById("q-text").textContent = Q.q;
+  document.getElementById("progress-fill").style.width = `${((current) / total) * 100}%`;
+
+  const wrap = document.getElementById("options");
+  wrap.innerHTML = "";
+  Q.a.forEach((opt, i) => {
+    const btn = document.createElement("button");
+    btn.className = "option" + (answers[current] === opt.d ? " selected" : "");
+    btn.innerHTML = `<span class="dot"></span><span>${opt.t}</span>`;
+    btn.onclick = () => selectOption(opt.d);
+    wrap.appendChild(btn);
+  });
+
+  document.getElementById("back-btn").style.visibility = current === 0 ? "hidden" : "visible";
+  const nextBtn = document.getElementById("next-btn");
+  nextBtn.disabled = answers[current] === null;
+  nextBtn.textContent = current === total - 1 ? "See my result" : "Next";
+}
+
+function selectOption(d) {
+  answers[current] = d;
+  // re-render selection state
+  const opts = document.querySelectorAll("#options .option");
+  const Q = QUESTIONS[current];
+  opts.forEach((el, i) => el.classList.toggle("selected", Q.a[i].d === d));
+  document.getElementById("next-btn").disabled = false;
+}
+
+function nextQuestion() {
+  if (answers[current] === null) return;
+  if (current < QUESTIONS.length - 1) {
+    current++;
+    renderQuestion();
+  } else {
+    showResults();
+  }
+}
+
+function prevQuestion() {
+  if (current > 0) { current--; renderQuestion(); }
+}
+
+function tally() {
+  const t = { vata: 0, pitta: 0, kapha: 0 };
+  answers.forEach(a => { if (a) t[a]++; });
+  return t;
+}
+
+function showResults() {
+  const t = tally();
+  const max = Math.max(t.vata, t.pitta, t.kapha);
+  const winners = ["vata", "pitta", "kapha"].filter(k => t[k] === max);
+  const primaryKey = winners[0]; // deterministic primary even on a tie
+  const D = DOSHA[primaryKey];
+  const total = QUESTIONS.length;
+
+  // hero
+  document.getElementById("result-hero").style.setProperty("--accent", D.accent);
+  document.getElementById("primary-name").textContent = D.name;
+  document.getElementById("primary-elements").textContent = D.elements;
+
+  // body
+  const tieNote = winners.length > 1
+    ? `<p class="note" style="margin-top:0;"><strong>You're closely balanced.</strong> Your answers landed evenly across ${winners.map(w => DOSHA[w].name).join(" & ")}. For now the app leads with <em>${D.name}</em>; in a future version we may surface a blended profile.</p>`
+    : "";
+
+  const body = document.getElementById("result-body");
+  body.style.setProperty("--accent", D.accent);
+  body.innerHTML = `
+    ${tieNote}
+    <h3>${D.governs}.</h3>
+    <p style="margin-top:0.5rem;">${D.blurb}</p>
+    <h3>You at your best</h3>
+    <ul>${D.balanced.map(x => `<li>${x}</li>`).join("")}</ul>
+    <h3>Signs ${D.name} is out of balance</h3>
+    <ul>${D.imbalanced.map(x => `<li>${x}</li>`).join("")}</ul>
+    <h3>What brings ${D.name} back to center</h3>
+    <p style="margin-top:0.5rem;">${D.care}</p>
+  `;
+
+  // personalization note (user-facing — names the dosha, no internal codes)
+  document.getElementById("code-line").innerHTML =
+    `Because <em>${D.name}</em> leads your constitution, the app will surface recipes and practices chosen for ${D.name} first — and layer in seasonal guidance, like cooling Pitta content for everyone in high summer.`;
+
+  // tally bars
+  ["vata", "pitta", "kapha"].forEach(k => {
+    document.getElementById(`num-${k}`).textContent = t[k];
+    document.getElementById(`bar-${k}`).style.width = `${(t[k] / total) * 100}%`;
+  });
+
+  show("screen-results");
+}
+
+function restart() {
+  answers.fill(null);
+  current = 0;
+  show("screen-intro");
+}
+
+// keyboard niceties: Enter advances when an option is chosen
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && document.getElementById("screen-quiz").classList.contains("active")) {
+    if (!document.getElementById("next-btn").disabled) nextQuestion();
+  }
+});
+</script>
+</body>
+</html>

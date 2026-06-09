@@ -1,0 +1,47 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+*.key
+**/wp-config.php
+supabase/.env
+supabase/.temp/
+
+# Large source data (134MB DB dump lives in raw/, keep it out of git)
+raw/lentine-db-export.sql
+*.sql.gz
+
+# Node / Expo
+node_modules/
+.expo/
+dist/
+web-build/
+*.log
+npm-debug.*
+yarn-error.log
+
+# macOS
+.DS_Store
+
+# Build artifacts
+ios/
+android/
+*.ipa
+*.apk
+*.aab
+
+# Local working memory
+.remember/
+
+# --- WordPress site via Local by WP Engine (copied into wordpress/) ---
+# Track ONLY our own code, wherever wp-content lands (Local nests it under app/public/).
+# Ignore everything under wordpress/ ...
+/wordpress/**
+# ...but allow git to descend into directories to find whitelisted files...
+!/wordpress/**/
+# ...then whitelist exactly the two trees we own:
+!/wordpress/**/wp-content/mu-plugins/**
+!/wordpress/**/wp-content/themes/lentinealexis/**
+# Never track uploads or secrets even inside whitelisted parents
+/wordpress/**/wp-content/uploads/**
+**/wp-config.php
