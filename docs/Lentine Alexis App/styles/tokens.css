@@ -1,0 +1,51 @@
+/* Lentine Alexis — extracted from the design system */
+:root {
+  --color-blue:        #000033;
+  --color-gray:        #E7E7E7;
+  --color-taupe:       #f4f0ec;
+  --color-white:       #ffffff;
+  --color-blue-bright: #0099B1;
+  --color-blue-light:  #3FBECC;
+  --color-red:         #EF2107;
+  --color-orange:      #FF9700;
+  --color-green:       #26A709;
+  --color-red-dark:    #BC4D48;
+
+  --color-highlight: var(--color-blue-light);
+  --site-text-color: var(--color-blue);
+  --site-background-color: var(--color-taupe);
+  --button-color: var(--color-blue);
+  --button-hover: var(--color-blue-light);
+  --button-important: var(--color-orange);
+
+  --fg-1: var(--color-blue);
+  --fg-2: rgba(0,0,51,0.72);
+  --fg-3: rgba(0,0,51,0.50);
+  --fg-4: rgba(0,0,51,0.28);
+  --fg-on-dark-1: #fff;
+  --fg-on-dark-2: rgba(255,255,255,0.72);
+
+  --font-sans: "Galano Classic", "Inter Placeholder", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --t-fast: 166ms;
+  --t-base: 333ms;
+  --t-slow: 666ms;
+
+  --button-border-radius: 0.3rem;
+}
+
+/* Galano Classic is licensed; use a placeholder stack. The geometric
+   fallback keeps the italic-emphasis feel close. */
+body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+em, i { font-style: italic; }
+strong, b { font-style: italic; font-weight: 400; }
+
+.la-eyebrow {
+  display: inline-block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05rem;
+  font-style: italic;
+  line-height: 1;
+}

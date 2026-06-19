@@ -20,6 +20,12 @@ bridge are the foundation. See [README.md](README.md) for full architecture.
    (e.g. "523 users imported, counts match", "logged-in subscriber sees gated recipe on
    both web and app") and verify against it before calling something done.
 
+5. **Work the loop; evidence before "ready."** Always run a tight loop —
+   **write → review → debug → test → repeat** — until the work is actually correct. Only
+   then report something as ready, and only with evidence (tests pass, the app runs, the
+   flow is verified, e.g. a browser click-through). Never claim success on an unverified
+   change.
+
 ## Project-specific guardrails
 
 - **The WordPress site is LIVE with paying subscribers.** Build and test against staging

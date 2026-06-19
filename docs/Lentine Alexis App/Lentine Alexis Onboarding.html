@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=1440" />
+<title>Lentine Alexis · Onboarding</title>
+<link rel="stylesheet" href="styles/tokens.css" />
+<style>
+  html, body { margin: 0; padding: 0; background: #e8e3dc; min-height: 100vh; }
+  body { font-family: var(--font-sans); color: var(--color-blue); }
+  .canvas {
+    min-height: 100vh;
+    padding: 2.5rem 2rem 4rem;
+    display: flex; flex-direction: column; align-items: center;
+    box-sizing: border-box;
+  }
+  .canvas-header { text-align: center; margin-bottom: 2rem; max-width: 70ch; }
+  .canvas-header .eb { display: inline-block; font-size: 0.65rem; letter-spacing: 0.25em; text-transform: uppercase; font-style: italic; color: rgba(0,0,51,0.55); }
+  .canvas-header h1 { font-size: 2.2rem; line-height: 1.1; font-weight: 400; margin: 0.85rem 0 0.5rem; letter-spacing: -0.015em; font-style: italic; }
+  .canvas-header p { font-size: 0.9rem; line-height: 1.65; color: rgba(0,0,51,0.7); max-width: 60ch; margin: 0 auto; }
+  .device-row {
+    display: flex; align-items: flex-start; gap: 3rem; justify-content: center;
+    margin-top: 2rem;
+    transform-origin: top center;
+  }
+  .device-col { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+  .device-label { font-size: 0.62rem; letter-spacing: 0.2em; text-transform: uppercase; font-style: italic; color: rgba(0,0,51,0.5); }
+  /* Tweaks panel */
+  .tweaks {
+    position: fixed; bottom: 20px; right: 20px; z-index: 9999;
+    background: #000033; color: #fff; padding: 1rem 1.1rem;
+    font-family: var(--font-sans); font-size: 0.8rem;
+    max-width: 280px; border-radius: 4px;
+    box-shadow: 0 16px 48px rgba(0,0,51,0.25);
+    display: none;
+  }
+  .tweaks.open { display: block; }
+  .tweaks h3 { font-size: 0.62rem; letter-spacing: 0.2em; text-transform: uppercase; font-style: italic; margin: 0 0 0.8rem; color: var(--color-blue-light); font-weight: 400; }
+  .tweaks label { display: block; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(255,255,255,0.55); font-style: italic; margin: 0.9rem 0 0.35rem; }
+  .tweaks select, .tweaks button.tb { width: 100%; background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.15); padding: 0.5rem 0.65rem; font-family: inherit; font-size: 0.82rem; font-style: italic; cursor: pointer; border-radius: 2px; }
+  .tweaks button.tb { text-align: left; }
+  .tweaks .row { display: flex; gap: 0.4rem; }
+  .tweaks .row > * { flex: 1; }
+  .tweak-toggle {
+    position: fixed; bottom: 20px; right: 20px; z-index: 9998;
+    background: var(--color-blue); color: #fff; border: none;
+    padding: 0.65rem 1rem; font-family: var(--font-sans); font-size: 0.72rem;
+    font-style: italic; text-transform: uppercase; letter-spacing: 0.1em;
+    cursor: pointer; border-radius: 2px; box-shadow: 0 8px 24px rgba(0,0,51,0.25);
+  }
+
+  /* Aesthetic variations */
+  body[data-aesthetic="taupe"] { background: #e8e3dc; }
+  body[data-aesthetic="ivory"] { background: #efeae2; }
+  body[data-aesthetic="dusk"]  { background: #1a1a38; color: #fff; }
+  body[data-aesthetic="dusk"] .canvas-header h1 { color: #fff; }
+  body[data-aesthetic="dusk"] .canvas-header p { color: rgba(255,255,255,0.7); }
+  body[data-aesthetic="dusk"] .canvas-header .eb { color: rgba(255,255,255,0.5); }
+  body[data-aesthetic="dusk"] .device-label { color: rgba(255,255,255,0.5); }
+
+  /* Aesthetic B — "Golden hour": warmer taupe, peach-orange as primary accent */
+  body[data-aesthetic="ivory"] {
+    --color-highlight: #d97a3e;
+    --color-blue-light: #d97a3e;
+    --color-blue-bright: #b35e2e;
+    --color-orange: #d97a3e;
+    --button-important: #d97a3e;
+    --button-hover: #d97a3e;
+    --site-background-color: #efeae2;
+  }
+  /* Aesthetic C — "Dusk": invert, navy becomes taupe-on-deepnavy */
+  body[data-aesthetic="dusk"] {
+    --color-taupe: #1f1f45;
+    --site-background-color: #1f1f45;
+  }
+</style>
+</head>
+<body data-aesthetic="taupe">
+
+<div class="canvas">
+  <div class="canvas-header">
+    <span class="eb">Lentine Alexis · Onboarding</span>
+    <h1>Balanced, purposeful <em>+ joyful.</em></h1>
+    <p>A new-member onboarding flow — from welcome through dosha intake, tier selection, and a personalized home teaser. The migrating-user branch reuses the same flow, with tier confirmation instead of selection.</p>
+  </div>
+
+  <div class="device-row" id="deviceRow">
+    <div class="device-col">
+      <span class="device-label">iOS · iPhone 16 Pro</span>
+      <div id="ios-root"></div>
+    </div>
+    <div class="device-col">
+      <span class="device-label">Android · Pixel 8</span>
+      <div id="android-root"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Tweaks UI (toggleable) -->
+<button id="tweakToggle" class="tweak-toggle">Tweaks ⚙</button>
+<div id="tweaks" class="tweaks">
+  <h3>Tweaks</h3>
+
+  <label>Aesthetic</label>
+  <select id="tw-aesthetic">
+    <option value="taupe">Taupe (default — Lentine brand)</option>
+    <option value="ivory">Golden hour (warm, peach accent)</option>
+    <option value="dusk">Dusk (inverted navy)</option>
+  </select>
+
+  <label>Jump to step</label>
+  <select id="tw-step">
+    <option value="splash">Splash</option>
+    <option value="signup">Sign up</option>
+    <option value="login">Log in (migrating)</option>
+    <option value="reset">Reset password</option>
+    <option value="profile">Profile</option>
+    <option value="quiz">Dosha Quiz</option>
+    <option value="result">Dosha Result</option>
+    <option value="tier">Tier selection</option>
+    <option value="billing">Billing</option>
+    <option value="payment">Payment</option>
+    <option value="tier_confirm">Tier confirm (migrating)</option>
+    <option value="notifications">Notifications</option>
+    <option value="home">Home teaser</option>
+  </select>
+
+  <label>Synced dosha (for result/home preview)</label>
+  <select id="tw-dosha">
+    <option value="vata">Vāta</option>
+    <option value="pitta">Pitta</option>
+    <option value="kapha">Kapha</option>
+  </select>
+
+  <label>Tier (for billing/home preview)</label>
+  <select id="tw-tier">
+    <option value="recipe">Recipe Club</option>
+    <option value="back_to_forward">Back to Forward</option>
+  </select>
+
+  <div style="margin-top: 1rem;">
+    <button class="tb" id="tw-reset">↻ Reset all state</button>
+  </div>
+
+  <div style="margin-top: 0.6rem; font-size: 0.65rem; color: rgba(255,255,255,0.45); font-style: italic; line-height: 1.5;">
+    Both devices stay in sync — tweak either one and both reflect.
+  </div>
+</div>
+
+<!-- React + Babel -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<!-- Frames -->
+<script type="text/babel" src="frames/ios-frame.jsx"></script>
+<script type="text/babel" src="frames/android-frame.jsx"></script>
+
+<!-- DS primitives -->
+<script type="text/babel" src="components/ds.jsx"></script>
+<script type="text/babel" src="components/screen.jsx"></script>
+
+<!-- Screens -->
+<script type="text/babel" src="screens/splash.jsx"></script>
+<script type="text/babel" src="screens/auth.jsx"></script>
+<script type="text/babel" src="screens/profile.jsx"></script>
+<script type="text/babel" src="screens/quiz.jsx"></script>
+<script type="text/babel" src="screens/result.jsx"></script>
+<script type="text/babel" src="screens/tier.jsx"></script>
+<script type="text/babel" src="screens/payment.jsx"></script>
+<script type="text/babel" src="screens/home.jsx"></script>
+
+<!-- Flow + mount -->
+<script type="text/babel" src="components/flow.jsx"></script>
+
+<script type="text/babel">
+function DeviceStage({ kind }) {
+  // Both devices share forceStep from parent App
+  return null; // placeholder, actual mount in App
+}
+
+function App({ kind }) {
+  // Listen for tweak events
+  const [forceStep, setForceStep] = React.useState(null);
+  const [nonce, setNonce] = React.useState(0);
+  React.useEffect(() => {
+    const h = (e) => {
+      if (e.detail && e.detail.type === "forceStep") setForceStep(e.detail.step);
+      if (e.detail && e.detail.type === "reset") setNonce(n => n + 1);
+      if (e.detail && e.detail.type === "setState") {
+        // Patch the persisted state and remount
+        try {
+          const KEY = "la_onb_state_v1";
+          const cur = JSON.parse(localStorage.getItem(KEY) || "{}");
+          localStorage.setItem(KEY, JSON.stringify({ ...cur, ...e.detail.patch }));
+          setNonce(n => n + 1);
+        } catch (err) {}
+      }
+    };
+    window.addEventListener("la-tweak", h);
+    return () => window.removeEventListener("la-tweak", h);
+  }, []);
+
+  const content = <OnboardingFlow key={"f"+nonce} forceStep={forceStep} />;
+  if (kind === "ios") {
+    return (
+      <IOSDevice width={380} height={824}>
+        <div style={{ position: "relative", width: "100%", height: "100%", paddingTop: 54, boxSizing: "border-box" }}>
+          {content}
+        </div>
+      </IOSDevice>
+    );
+  }
+  return (
+    <AndroidDevice width={380} height={824}>
+      <div style={{ position: "relative", width: "100%", height: "100%", boxSizing: "border-box" }}>
+        {content}
+      </div>
+    </AndroidDevice>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("ios-root")).render(<App kind="ios" />);
+ReactDOM.createRoot(document.getElementById("android-root")).render(<App kind="android" />);
+</script>
+
+<script>
+  // Tweaks UI wiring
+  const toggle = document.getElementById("tweakToggle");
+  const panel = document.getElementById("tweaks");
+  toggle.addEventListener("click", () => {
+    panel.classList.toggle("open");
+    toggle.style.display = panel.classList.contains("open") ? "none" : "block";
+  });
+
+  document.getElementById("tw-aesthetic").addEventListener("change", (e) => {
+    document.body.setAttribute("data-aesthetic", e.target.value);
+  });
+
+  document.getElementById("tw-step").addEventListener("change", (e) => {
+    window.dispatchEvent(new CustomEvent("la-tweak", { detail: { type: "forceStep", step: e.target.value } }));
+  });
+
+  document.getElementById("tw-dosha").addEventListener("change", (e) => {
+    window.dispatchEvent(new CustomEvent("la-tweak", { detail: { type: "setState", patch: { dosha: e.target.value, quizDone: true } } }));
+  });
+
+  document.getElementById("tw-tier").addEventListener("change", (e) => {
+    const tier = e.target.value;
+    window.dispatchEvent(new CustomEvent("la-tweak", { detail: { type: "setState", patch: { tier, interval: "year" } } }));
+  });
+
+  document.getElementById("tw-reset").addEventListener("click", () => {
+    localStorage.removeItem("la_onb_state_v1");
+    window.dispatchEvent(new CustomEvent("la-tweak", { detail: { type: "reset" } }));
+    window.dispatchEvent(new CustomEvent("la-tweak", { detail: { type: "forceStep", step: "splash" } }));
+    document.getElementById("tw-step").value = "splash";
+  });
+</script>
+
+</body>
+</html>
