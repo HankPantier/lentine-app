@@ -7,9 +7,13 @@
 supabase/.env
 supabase/.temp/
 
-# Large source data (134MB DB dump lives in raw/, keep it out of git)
-raw/lentine-db-export.sql
+# Large source data — DB dumps live in raw/, contain real PII + password hashes + Stripe ids.
+# Never commit any dump.
+raw/*.sql
 *.sql.gz
+
+# Migration extract artifacts (subscribers.json/csv/summary) — derived PII, never commit.
+migration/artifacts/
 
 # Design export archive (the unzipped folder is tracked; the zip is a redundant binary)
 docs/*.zip

@@ -1,0 +1,17 @@
+{
+  "name": "lentine-migration",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Repeatable WP/WooCommerce → Supabase subscriber migration pipeline",
+  "scripts": {
+    "test": "node --test src/lib/*.test.mjs",
+    "extract": "node src/extract.mjs",
+    "load": "node src/load.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "dotenv": "^16.4.5",
+    "mysql2": "^3.11.0"
+  }
+}
