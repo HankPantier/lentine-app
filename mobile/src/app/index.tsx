@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { useEffect } from 'react';
 import { View } from 'react-native';
 import { Button, DarkScreen, Eyebrow, Rule, Text, Wordmark } from '@/components';
 import { useOnboarding } from '@/onboarding/state';
@@ -6,7 +7,19 @@ import { colors, fg } from '@/theme/tokens';
 
 export default function SplashRoute() {
   const router = useRouter();
-  const { update } = useOnboarding();
+  const { state, hydrated, update } = useOnboarding();
+
+  // Resume: a user who already finished onboarding skips the splash and lands on home.
+  useEffect(() => {
+    if (hydrated && state.completed) {
+      router.replace('/home');
+    }
+  }, [hydrated, state.completed, router]);
+
+  // Wait for persisted state to load so we don't flash the splash to a returning user.
+  if (!hydrated || state.completed) {
+    return null;
+  }
 
   const begin = () => {
     update({ mode: 'new' });
