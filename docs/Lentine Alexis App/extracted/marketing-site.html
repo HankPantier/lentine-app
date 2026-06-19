@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<title>Lentine Alexis — Marketing Site Kit</title>
+
+<style>/* ==========================================================================
+   Lentine Alexis — Colors & Type
+   Extracted from the live theme at lentinealexis.com/wp-content/themes/
+   lentinealexis/style.css
+   ==========================================================================
+
+   USAGE:
+     <link rel="stylesheet" href="colors_and_type.css">
+     — then author against the semantic tokens (--site-*, --button-*),
+       not the raw palette. The raw palette is exposed for edge cases.
+
+   FONT NOTE:
+     Galano Classic is self-hosted from /fonts/ in this system. Four cuts
+     are loaded with font-display: swap (Regular, Italic, Bold, BoldItalic).
+     Galano Classic is a licensed commercial typeface from ReType —
+     ensure your deployment has the appropriate license.
+   ========================================================================== */
+
+@font-face {
+  font-family: 'Galano Classic';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("e3fd0d23-8bba-4ee1-a1bb-de2b63c0c168") format('woff2'),
+       url("e6d74de7-0b5c-494f-bc2c-bb4be4f922bd")  format('woff');
+}
+@font-face {
+  font-family: 'Galano Classic';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("131d5308-94be-4a59-86d5-afc473a85f9d") format('woff2'),
+       url("1be38609-aa70-4e19-b5d2-99540b83a821")  format('woff');
+}
+@font-face {
+  font-family: 'Galano Classic';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("cac0eff3-0ac3-4dc7-9fe6-dc4958e9e4fd") format('woff2'),
+       url("faabc4ba-f0d7-43dd-a5fd-d2afa9507b84")  format('woff');
+}
+@font-face {
+  font-family: 'Galano Classic';
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+  src: url("cca04aae-b30b-4c8f-a94a-0043667c382a") format('woff2'),
+       url("8856c50a-956a-4e11-ba6f-ad6c1999e04d")  format('woff');
+}
+
+:root {
+  /* --- Raw palette --------------------------------------------------- */
+  --color-blue:        #000033;  /* Near-black midnight navy. PRIMARY. */
+  --color-gray:        #E7E7E7;  /* Hairline borders, dividers. */
+  --color-taupe:       #f4f0ec;  /* Warm off-white. Default page bg. */
+  --color-white:       #ffffff;  /* Form inputs, overlay text only. */
+  --color-blue-bright: #0099B1;  /* Default link color. */
+  --color-blue-light:  #3FBECC;  /* Hover, nav hover, highlight accent. */
+  --color-red:         #EF2107;  /* Error / destructive. */
+  --color-orange:      #FF9700;  /* Important CTA (one per view). */
+  --color-green:       #26A709;  /* Success. */
+  --color-red-dark:    #BC4D48;  /* Muted red / sale secondary. */
+
+  /* --- Semantic tokens (prefer these) -------------------------------- */
+  --color-highlight:        var(--color-blue-light);
+  --site-text-color:        var(--color-blue);
+  --site-overlay-color:     var(--color-blue);
+  --site-header-color:      var(--color-blue);
+  --site-footer-color:      var(--color-blue);
+  --site-background-color:  var(--color-taupe);
+  --site-nav-hover-color:   var(--color-blue-light);
+
+  --button-color:           var(--color-blue);
+  --button-hover:           var(--color-blue-light);
+  --button-important:       var(--color-orange);
+
+  /* --- Foreground scale (derived for layered UI) --------------------- */
+  --fg-1:  var(--color-blue);                 /* Primary text */
+  --fg-2:  rgba(0, 0, 51, 0.72);              /* Secondary text */
+  --fg-3:  rgba(0, 0, 51, 0.50);              /* Tertiary / meta */
+  --fg-4:  rgba(0, 0, 51, 0.28);              /* Disabled / quiet */
+  --fg-on-dark-1: var(--color-white);
+  --fg-on-dark-2: rgba(255, 255, 255, 0.72);
+
+  /* --- Typography ---------------------------------------------------- */
+  /* Galano Classic is self-hosted; system fallbacks for pre-swap paint. */
+  --font-sans: "Galano Classic", -apple-system, BlinkMacSystemFont,
+               "Segoe UI", Roboto, sans-serif;
+  --font-script: "Galano Classic", sans-serif; /* logo is image */
+
+  /* Fluid heading sizes (mobile → desktop via clamp) */
+  --fs-h1-hero-xl: clamp(3.5rem, 7vw + 1rem, 8rem);    /* 56 → 128px */
+  --fs-h1-hero:    clamp(3.2rem, 5vw + 1rem, 7rem);    /* 51 → 112px */
+  --fs-h1:         clamp(2.4rem, 1.5vw + 2rem, 3.2rem);/* 38 → 51px  */
+  --fs-h2:         clamp(2rem,   1vw + 1.6rem, 2.7rem);/* 32 → 43px  */
+  --fs-h2-alt:     2.1rem;                             /* 33.6px     */
+  --fs-h3:         2rem;                               /* 32px       */
+  --fs-h3-hero:    2.75rem;                            /* 44px       */
+  --fs-h4:         1.35rem;                            /* 21.6px     */
+  --fs-h4-caps:    1.5rem;                             /* 24px       */
+  --fs-h5:         1.1rem;                             /* 17.6px     */
+  --fs-eyebrow:    0.7rem;                             /* 11.2px     */
+  --fs-body:       1rem;                               /* 16px       */
+  --fs-small:      0.8rem;                             /* 12.8px     */
+
+  --ls-tight:      -0.15rem;                           /* 128px h1   */
+  --ls-eyebrow:    0.05rem;
+  --ls-button:     0.01rem;
+
+  --lh-body:       1.8;
+  --lh-tight:      1.1;
+  --lh-heading:    1.15;
+  --site-line-height: var(--lh-body);
+
+  /* --- Layout / spacing --------------------------------------------- */
+  --site-padding:       3%;
+  --site-grid-gap:      2rem;
+  --site-header-height:        81px;
+  --site-header-mobile-height: 84px;
+
+  --space-1:  0.25rem;   /* 4px  */
+  --space-2:  0.5rem;    /* 8px  */
+  --space-3:  0.75rem;   /* 12px */
+  --space-4:  1rem;      /* 16px */
+  --space-5:  1.5rem;    /* 24px */
+  --space-6:  2rem;      /* 32px */
+  --space-7:  3rem;      /* 48px */
+  --space-8:  4rem;      /* 64px */
+  --space-9:  6rem;      /* 96px */
+
+  /* --- Borders / radii ---------------------------------------------- */
+  --site-border-radius:   0;       /* SHARP everywhere by default */
+  --button-border-radius: 0.3rem;  /* Subtle softening, buttons only */
+  --border-hairline: 1px solid var(--color-gray);
+  --border-rule:     1px solid var(--site-text-color);
+
+  /* --- Motion ------------------------------------------------------- */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --t-fast:  166ms;
+  --t-base:  333ms;   /* The signature. Use this. */
+  --t-slow:  666ms;
+
+  /* --- Shadows (used sparingly) ------------------------------------- */
+  --shadow-1: 0 1px 2px rgba(0, 0, 51, 0.06);
+  --shadow-2: 0 4px 16px rgba(0, 0, 51, 0.08);
+  --shadow-3: 0 16px 48px rgba(0, 0, 51, 0.12);
+  /* Image-overlay gradient for hero text contrast */
+  --overlay-hero: linear-gradient(
+                    180deg,
+                    rgba(0, 0, 51, 0.15) 0%,
+                    rgba(0, 0, 51, 0.55) 100%);
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: var(--fs-body);
+  line-height: 1.4;
+  color: var(--site-text-color);
+  background: var(--site-background-color);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-taupe);
+  color: var(--color-blue);
+}
+
+a {
+  color: var(--color-blue-bright);
+  text-decoration: none;
+  transition: color var(--t-base) var(--ease);
+}
+a:hover { color: var(--color-blue-light); }
+
+img { max-width: 100%; display: block; }
+
+/* ============================================================
+   TYPE SCALE — size, not weight, is how hierarchy signals
+   ============================================================ */
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-weight: 400;
+  line-height: var(--lh-heading);
+  color: var(--site-text-color);
+}
+
+h1 { font-size: var(--fs-h1); }
+h2 { font-size: var(--fs-h2); }
+h3 { font-size: var(--fs-h3); }
+h4 { font-size: var(--fs-h4); }
+h5 { font-size: var(--fs-h5); }
+
+.h1-hero-xl {
+  font-size: var(--fs-h1-hero-xl);
+  letter-spacing: var(--ls-tight);
+  line-height: 0.95;
+}
+.h1-hero    { font-size: var(--fs-h1-hero); line-height: 1; }
+.h2-alt     { font-size: var(--fs-h2-alt); }
+.h3-rule    {
+  font-size: var(--fs-h3);
+  border-bottom: var(--border-rule);
+  padding-bottom: 0.5rem;
+}
+.h4-caps    {
+  font-size: var(--fs-h4-caps);
+  text-transform: uppercase;
+}
+
+/* THE signature — tiny, tracked, uppercase label */
+.eyebrow {
+  display: inline-block;
+  font-size: var(--fs-eyebrow);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-eyebrow);
+  font-weight: 400;
+  line-height: 1;
+}
+
+/* Paragraphs — generous line-height is non-negotiable */
+p {
+  line-height: var(--site-line-height);
+  margin: 0 0 1rem;
+  max-width: 70ch;
+}
+
+em, i { font-style: italic; }      /* italic carries emphasis, never bold */
+strong, b { font-style: italic; font-weight: 400; }
+
+/* Heading rhythm — 2rem of air after running prose/list */
+p + h1, p + h2, p + h3,
+ul + h1, ul + h2, ul + h3,
+ol + h1, ol + h2, ol + h3 { margin-top: 2rem; }
+
+/* Responsive tweaks — only two breakpoints per the source theme */
+@media (max-width: 1025px) {
+  :root { --fs-h1-hero: 2.7rem; }
+}
+@media (max-width: 800px) {
+  :root { --site-padding: 5%; }
+}
+</style>
+<style>
+  body { margin: 0; }
+  main { display: block; }
+</style>
+<script src="70141cb6-7ed1-4b7a-90a8-88da817d67a3" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="d1758b26-5315-4a1e-992d-3e2bc1298036" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="24676121-377e-4533-99f3-a34e7a2a7c39" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="86f7e32a-24af-49b4-a779-426ad1e52214"></script>
+<script type="text/babel" src="bf5c4060-b36d-4f18-8647-b66f988951ed"></script>
+<script type="text/babel" src="9d99238d-ca66-456f-8560-3e2971ae0355"></script>
+<script type="text/babel" src="15e49d54-b6be-40f3-bebc-ef2ad0837ecb"></script>
+<script type="text/babel" src="e496537a-12e6-46d9-8f5c-fe1a8ce22870"></script>
+<script type="text/babel" src="741d49f6-a2a0-40ef-817c-eefa6476975f"></script>
+<script type="text/babel" src="525d263c-f1b0-4d44-9566-455b38864377"></script>
+<script type="text/babel" src="50ca5e1c-8cf0-48aa-b8af-fe44f87599c2"></script>
+<script type="text/babel" src="40a70f9b-93f5-4688-ba91-86a23dd8889e"></script>
+<script type="text/babel" src="1fb5f4cc-42d6-41a1-9390-6190b3264a66"></script>
+<script type="text/babel" src="b756cfe4-c7bd-436d-8202-8bcf7e7c5043"></script>
+
+<script type="text/babel">
+function App() {
+  const [page, setPage] = React.useState(
+    localStorage.getItem("la_page") || "home"
+  );
+  const nav = (id) => {
+    setPage(id);
+    localStorage.setItem("la_page", id);
+    window.scrollTo({ top: 0 });
+  };
+  const Pages = {
+    home:       <PageHome onNav={nav} />,
+    ayurveda:   <PageAyurveda onNav={nav} />,
+    recipes:    <PageRecipes onNav={nav} />,
+    membership: <PageMembership onNav={nav} />,
+    shop:       <PageRecipes onNav={nav} />,
+  };
+  return (
+    <React.Fragment>
+      <Header active={page} onNav={nav} />
+      <main data-screen-label={"Marketing — " + page}>
+        {Pages[page] || Pages.home}
+      </main>
+      <Footer onNav={nav} />
+    </React.Fragment>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+
+
+</body></html>

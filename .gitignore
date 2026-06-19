@@ -11,6 +11,9 @@ supabase/.temp/
 raw/lentine-db-export.sql
 *.sql.gz
 
+# Design export archive (the unzipped folder is tracked; the zip is a redundant binary)
+docs/*.zip
+
 # Node / Expo
 node_modules/
 .expo/
