@@ -1,25 +1,22 @@
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Button, Eyebrow, Heading, Screen, Text, Wordmark } from '@/components';
+import { DOSHA_CONTENT } from '@/content/dosha-content';
+import { formatLongDate } from '@/lib/format';
 import { TIER_NAME } from '@/onboarding/pricing';
 import { useOnboarding } from '@/onboarding/state';
 import { DOSHA } from '@/quiz/doshas';
-import type { DoshaKey } from '@/quiz/types';
 import { colors, fg } from '@/theme/tokens';
 
-const RITUAL: Record<DoshaKey, { title: string; meta: string }> = {
-  vata: { title: 'Warm oil self-massage', meta: '8 min · grounding' },
-  pitta: { title: 'Cooling breath by a window', meta: '5 min · soothing' },
-  kapha: { title: 'Brisk morning walk', meta: '15 min · energizing' },
-};
-
-const RECIPE: Record<DoshaKey, { title: string; meta: string }> = {
-  vata: { title: 'Golden spiced oatmeal', meta: 'Warm · nourishing · easy' },
-  pitta: { title: 'Cucumber-mint cooler bowl', meta: 'Fresh · cooling · light' },
-  kapha: { title: 'Ginger lentil soup', meta: 'Spiced · light · warming' },
-};
-
 const SNOOZE_MS = 3 * 24 * 60 * 60 * 1000; // re-show the quiz nudge ~3 days after dismissal
+
+const STATUS_LABEL: Record<string, string> = {
+  active: 'Active',
+  trialing: 'Trial',
+  past_due: 'Past due',
+  cancelled: 'Cancelled',
+};
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -43,11 +40,15 @@ export default function HomeRoute() {
   const key = state.dosha ?? 'vata';
   const d = DOSHA[key];
   const first = state.firstName || 'friend';
+  const sub = state.subscription;
+
+  // Snapshot "now" once per mount (a lazy initializer keeps render pure — no Date.now() call
+  // on every render). Millisecond precision isn't needed for a multi-day snooze window.
+  const [now] = useState(() => Date.now());
 
   // Nudge un-quizzed users to take the dosha quiz, but only every few days once dismissed.
   const showQuizNudge =
-    !hasDosha &&
-    (state.quizNudgeDismissedAt == null || Date.now() - state.quizNudgeDismissedAt > SNOOZE_MS);
+    !hasDosha && (state.quizNudgeDismissedAt == null || now - state.quizNudgeDismissedAt > SNOOZE_MS);
 
   return (
     <Screen padding={0}>
@@ -126,35 +127,61 @@ export default function HomeRoute() {
           </View>
         ) : null}
 
+        {/* Today teaser → the dosha content landing */}
         <View>
-          <Eyebrow style={{ marginBottom: 8 }}>Today&rsquo;s ritual</Eyebrow>
-          <Card>
-            <Text weight="semibold" style={{ fontSize: 17, color: colors.blue }}>
-              {RITUAL[key].title}
-            </Text>
-            <Text style={{ color: fg.secondary, fontSize: 13, marginTop: 4 }}>{RITUAL[key].meta}</Text>
-          </Card>
+          <Eyebrow style={{ marginBottom: 8 }}>{hasDosha ? `Today, for your ${d.name}` : 'Today'}</Eyebrow>
+          <Pressable onPress={() => router.push('/today')} accessibilityRole="button" accessibilityLabel="Open today">
+            <Card>
+              <Text style={{ color: colors.blue, fontSize: 15, lineHeight: 23 }}>
+                {hasDosha
+                  ? DOSHA_CONTENT[key].focus
+                  : 'Your rituals and recipes appear here once you’ve found your dosha.'}
+              </Text>
+              <Text
+                italic
+                style={{
+                  color: colors.blueBright,
+                  fontSize: 13,
+                  marginTop: 12,
+                  letterSpacing: 0.5,
+                  textTransform: 'uppercase',
+                }}
+              >
+                See today →
+              </Text>
+            </Card>
+          </Pressable>
         </View>
 
-        <View>
-          <Eyebrow style={{ marginBottom: 8 }}>
-            {hasDosha ? `Made for your ${d.name}` : 'Today’s recipe'}
-          </Eyebrow>
-          <Card>
-            <Text weight="semibold" style={{ fontSize: 17, color: colors.blue }}>
-              {RECIPE[key].title}
-            </Text>
-            <Text style={{ color: fg.secondary, fontSize: 13, marginTop: 4 }}>{RECIPE[key].meta}</Text>
-          </Card>
-        </View>
-
+        {/* Membership — the member's real subscription (returning members) or selected plan */}
         <View style={{ backgroundColor: colors.blue, padding: 18 }}>
           <Eyebrow light color={colors.blueLight} style={{ marginBottom: 6 }}>
-            {state.tier ? TIER_NAME[state.tier] : 'Your membership'}
+            Your membership
           </Eyebrow>
-          <Text style={{ color: colors.white, fontSize: 15, lineHeight: 23 }}>
-            This month in Back to Forward: settling the nervous system, one small practice at a time.
-          </Text>
+          {sub ? (
+            <>
+              <Text weight="semibold" style={{ color: colors.white, fontSize: 17 }}>
+                {TIER_NAME[sub.tier]}
+              </Text>
+              <Text style={{ color: fg.onDarkSecondary, fontSize: 14, marginTop: 4 }}>
+                {`Billed ${sub.interval === 'year' ? 'yearly' : 'monthly'} · ${STATUS_LABEL[sub.status] ?? sub.status}`}
+              </Text>
+              <Text style={{ color: fg.onDarkSecondary, fontSize: 14, marginTop: 2 }}>
+                {`Renews ${formatLongDate(sub.currentPeriodEnd)}`}
+              </Text>
+            </>
+          ) : state.tier ? (
+            <>
+              <Text weight="semibold" style={{ color: colors.white, fontSize: 17 }}>
+                {TIER_NAME[state.tier]}
+              </Text>
+              <Text style={{ color: fg.onDarkSecondary, fontSize: 14, marginTop: 4 }}>
+                {state.interval ? `Billed ${state.interval === 'year' ? 'yearly' : 'monthly'}` : 'Plan selected'}
+              </Text>
+            </>
+          ) : (
+            <Text style={{ color: fg.onDarkSecondary, fontSize: 14 }}>No active subscription.</Text>
+          )}
         </View>
 
         <View style={{ alignItems: 'center', marginTop: 8 }}>

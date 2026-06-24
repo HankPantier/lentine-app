@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Button, Eyebrow, Heading, OnbTopBar, Screen, Text } from '@/components';
+import { persistDosha } from '@/lib/profile';
 import { useOnboarding } from '@/onboarding/state';
 import { progress } from '@/onboarding/steps';
 import { DOSHA } from '@/quiz/doshas';
@@ -82,7 +83,21 @@ export default function QuizRoute() {
       return;
     }
     const result = computeResult(state.answers);
-    update({ dosha: result.primary, quizDone: true });
+    const takenAt = new Date().toISOString();
+    update({
+      dosha: result.primary,
+      doshaScores: result.tally,
+      doshaTakenAt: takenAt,
+      quizDone: true,
+    });
+    // Capture the result in Supabase when signed in. Fire-and-forget: a brand-new user with
+    // email confirmation still pending has no session, so the reconcile-on-auth pass backfills
+    // it on their next sign-in (see syncDoshaOnAuth).
+    if (state.userId) {
+      persistDosha(state.userId, result.primary, result.tally, takenAt).then(({ error }) => {
+        if (error) console.warn('[dosha] save failed:', error);
+      });
+    }
     router.push('/result');
   };
 

@@ -8,7 +8,7 @@ import {
   useState,
 } from 'react';
 import { QUESTIONS } from '@/quiz/questions';
-import type { Answer, DoshaKey } from '@/quiz/types';
+import type { Answer, DoshaKey, Tally } from '@/quiz/types';
 
 export type Tier = 'recipe' | 'back_to_forward';
 export type Interval = 'month' | 'year';
@@ -31,6 +31,10 @@ export interface OnboardingState {
   /** Supabase auth user id once signed in / signed up; null while unauthenticated. */
   userId: string | null;
   dosha: DoshaKey | null;
+  /** Per-dosha tally behind the result (vata/pitta/kapha counts); null until the quiz is done. */
+  doshaScores: Tally | null;
+  /** ISO timestamp the quiz was last completed; null until then. */
+  doshaTakenAt: string | null;
   tier: Tier | null;
   interval: Interval | null;
   /** Real subscription pulled from Supabase for a returning member (null for new users). */
@@ -58,6 +62,8 @@ function initialState(): OnboardingState {
     lastName: '',
     userId: null,
     dosha: null,
+    doshaScores: null,
+    doshaTakenAt: null,
     tier: null,
     interval: null,
     subscription: null,

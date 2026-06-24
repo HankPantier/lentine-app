@@ -1,0 +1,117 @@
+import { useRouter } from 'expo-router';
+import { Pressable, View } from 'react-native';
+import { Button, Eyebrow, Heading, Screen, Text } from '@/components';
+import { DOSHA_CONTENT, type ContentItem } from '@/content/dosha-content';
+import { useOnboarding } from '@/onboarding/state';
+import { DOSHA } from '@/quiz/doshas';
+import { colors, fg } from '@/theme/tokens';
+
+function ContentCard({ item }: { item: ContentItem }) {
+  return (
+    <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18 }}>
+      <Text weight="semibold" style={{ fontSize: 17, color: colors.blue }}>
+        {item.title}
+      </Text>
+      <Text style={{ color: fg.secondary, fontSize: 13, marginTop: 4 }}>{item.meta}</Text>
+    </View>
+  );
+}
+
+/**
+ * The dosha-personalized content landing — a placeholder surface that today renders sample
+ * content from @/content/dosha-content and will later render real WordPress/CMS content.
+ * No dosha yet → invite the member to take the quiz.
+ */
+export default function TodayRoute() {
+  const router = useRouter();
+  const { state } = useOnboarding();
+  const dosha = state.dosha;
+
+  if (!dosha) {
+    return (
+      <Screen>
+        <BackButton onBack={() => router.back()} />
+        <Eyebrow>For you</Eyebrow>
+        <Heading style={{ marginTop: 8 }}>
+          Find your{' '}
+          <Text italic style={{ fontSize: 30, lineHeight: 35 }}>
+            dosha
+          </Text>
+        </Heading>
+        <Text style={{ color: fg.secondary, fontSize: 15, lineHeight: 23, marginTop: 12 }}>
+          Take the two-minute quiz and this page fills with rituals and recipes shaped around
+          your constitution.
+        </Text>
+        <Button label="Take the quiz" onPress={() => router.push('/quiz-intro')} style={{ marginTop: 20 }} />
+      </Screen>
+    );
+  }
+
+  const d = DOSHA[dosha];
+  const content = DOSHA_CONTENT[dosha];
+
+  return (
+    <Screen padding={0}>
+      {/* Hero */}
+      <View style={{ backgroundColor: colors.blue, paddingHorizontal: 24, paddingTop: 28, paddingBottom: 32 }}>
+        <BackButton onBack={() => router.back()} light />
+        <Eyebrow light color={colors.blueLight} style={{ marginTop: 20 }}>
+          {`For your ${d.name}`}
+        </Eyebrow>
+        <Heading dark size={30} style={{ marginTop: 8 }}>
+          Today,{' '}
+          <Text italic style={{ color: d.accent, fontSize: 30, lineHeight: 35 }}>
+            for you
+          </Text>
+        </Heading>
+        <Text style={{ color: fg.onDarkSecondary, fontSize: 15, lineHeight: 23, marginTop: 12 }}>
+          {content.focus}
+        </Text>
+      </View>
+
+      <View style={{ padding: 24, gap: 20 }}>
+        <View>
+          <Eyebrow style={{ marginBottom: 8 }}>Today&rsquo;s ritual</Eyebrow>
+          <ContentCard item={content.ritual} />
+        </View>
+
+        <View>
+          <Eyebrow style={{ marginBottom: 8 }}>{`Made for your ${d.name}`}</Eyebrow>
+          <ContentCard item={content.recipe} />
+        </View>
+
+        {/* Placeholder: this is where the team's dosha-specific content will land. */}
+        <View
+          style={{
+            borderWidth: 1,
+            borderColor: colors.blueLight,
+            borderStyle: 'dashed',
+            padding: 18,
+          }}
+        >
+          <Eyebrow color={colors.blueBright} style={{ marginBottom: 6 }}>
+            More coming soon
+          </Eyebrow>
+          <Text style={{ color: fg.secondary, fontSize: 14, lineHeight: 21 }}>
+            Guided practices, seasonal recipes, and Back to Forward lessons tuned to your{' '}
+            {d.name} constitution are on the way.
+          </Text>
+        </View>
+      </View>
+    </Screen>
+  );
+}
+
+function BackButton({ onBack, light }: { onBack: () => void; light?: boolean }) {
+  return (
+    <Pressable
+      onPress={onBack}
+      hitSlop={12}
+      accessibilityRole="button"
+      accessibilityLabel="Go back"
+      style={{ alignSelf: 'flex-start' }}
+    >
+      <Text style={{ fontSize: 26, lineHeight: 26, color: light ? colors.white : colors.blue }}>←</Text>
+    </Pressable>
+  );
+}
