@@ -81,6 +81,22 @@ test('/today renders dosha-personalized content', async ({ page }) => {
   await expect(page.getByText('More coming soon')).toBeVisible();
 });
 
+test('member can edit dosha answers from the account screen', async ({ page }) => {
+  // Stale primary (vata) but every answer is kapha — proves the edit screen recomputes the
+  // result from the answers (not the stored primary) and saves the new one.
+  await seed(page, completedState({ dosha: 'vata', answers: Array(12).fill('kapha') }));
+  await page.goto('/account');
+
+  await page.getByRole('button', { name: 'Edit my answers' }).click();
+  await expect(page).toHaveURL(/\/edit-answers/);
+  await expect(page.getByText('Edit your', { exact: false })).toBeVisible();
+  await expect(page.getByText('Kapha')).toBeVisible(); // live recomputed preview
+
+  await page.getByRole('button', { name: 'Save answers' }).click();
+  await expect(page).toHaveURL(/\/account/);
+  await expect(page.getByText('Kapha')).toBeVisible(); // saved + reflected on the profile
+});
+
 test('/today invites un-quizzed members to take the quiz', async ({ page }) => {
   await seed(page, completedState({ dosha: null, doshaScores: null, doshaTakenAt: null, quizDone: false }));
   await page.goto('/today');

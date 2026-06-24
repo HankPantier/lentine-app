@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
-import { Button, Eyebrow, Heading, OnbTopBar, Screen, Text } from '@/components';
+import { View } from 'react-native';
+import { Button, Eyebrow, Heading, OnbTopBar, OptionCard, Screen, Text } from '@/components';
 import { persistDosha } from '@/lib/profile';
 import { useOnboarding } from '@/onboarding/state';
 import { progress } from '@/onboarding/steps';
@@ -10,52 +10,6 @@ import { QUESTIONS } from '@/quiz/questions';
 import { computeResult } from '@/quiz/scoring';
 import type { DoshaKey } from '@/quiz/types';
 import { colors, fg } from '@/theme/tokens';
-
-function OptionCard({
-  label,
-  selected,
-  onPress,
-}: {
-  label: string;
-  selected: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="radio"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      style={{
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: 14,
-        backgroundColor: colors.white,
-        borderWidth: 1,
-        borderColor: selected ? colors.blue : colors.gray,
-        padding: 16,
-      }}
-    >
-      <View
-        style={{
-          width: 18,
-          height: 18,
-          borderRadius: 9,
-          borderWidth: 1,
-          borderColor: colors.blue,
-          backgroundColor: selected ? colors.blue : 'transparent',
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginTop: 3,
-        }}
-      >
-        {selected ? (
-          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.white }} />
-        ) : null}
-      </View>
-      <Text style={{ flex: 1, fontSize: 15, lineHeight: 22, color: colors.blue }}>{label}</Text>
-    </Pressable>
-  );
-}
 
 export default function QuizRoute() {
   const router = useRouter();

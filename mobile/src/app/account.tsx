@@ -134,11 +134,18 @@ export default function AccountRoute() {
                 {`Governs ${dosha.governs.toLowerCase()}.`}
               </Text>
               <Button
-                label="Retake the quiz"
+                label="Edit my answers"
                 variant="outline"
                 size="sm"
-                onPress={() => router.push('/quiz-intro')}
+                onPress={() => router.push('/edit-answers')}
                 style={{ marginTop: 14 }}
+              />
+              <Button
+                label="Retake from the start"
+                variant="plain"
+                size="sm"
+                onPress={() => router.push('/quiz-intro')}
+                style={{ marginTop: 8 }}
               />
             </>
           ) : (

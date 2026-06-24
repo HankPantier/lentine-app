@@ -2,6 +2,7 @@ export { Button, type ButtonSize, type ButtonVariant } from './Button';
 export { Eyebrow } from './Eyebrow';
 export { Field } from './Field';
 export { Heading } from './Heading';
+export { OptionCard } from './OptionCard';
 export { ProgressDots } from './ProgressDots';
 export { Rule } from './Rule';
 export { DarkScreen, OnbTopBar, Screen } from './Screen';
