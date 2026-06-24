@@ -1,6 +1,6 @@
 import type { OnboardingState } from '@/onboarding/state';
-import type { DoshaKey, Tally } from '@/quiz/types';
-import { asTally, isDoshaKey } from './dosha-encoding';
+import type { Answer, DoshaKey, Tally } from '@/quiz/types';
+import { asAnswers, asTally, isDoshaKey } from './dosha-encoding';
 import { supabase } from './supabase';
 
 /** The Dosha result as stored on the member's profile row. */
@@ -8,6 +8,8 @@ export interface ProfileDosha {
   primary: DoshaKey;
   scores: Tally | null;
   takenAt: string | null;
+  /** Per-question answers behind the result; null on rows written before 0004. */
+  answers: Answer[] | null;
 }
 
 /**
@@ -18,7 +20,7 @@ export interface ProfileDosha {
 export async function fetchProfileDosha(userId: string): Promise<ProfileDosha | null> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('primary_dosha, dosha_scores, dosha_taken_at')
+    .select('primary_dosha, dosha_scores, dosha_taken_at, dosha_answers')
     .eq('id', userId)
     .maybeSingle();
 
@@ -28,6 +30,7 @@ export async function fetchProfileDosha(userId: string): Promise<ProfileDosha | 
     primary: data.primary_dosha,
     scores: asTally(data.dosha_scores),
     takenAt: (data.dosha_taken_at as string | null) ?? null,
+    answers: asAnswers(data.dosha_answers),
   };
 }
 
@@ -41,10 +44,16 @@ export async function persistDosha(
   primary: DoshaKey,
   scores: Tally,
   takenAt: string,
+  answers: Answer[],
 ): Promise<{ error: string | null }> {
   const { error } = await supabase
     .from('profiles')
-    .update({ primary_dosha: primary, dosha_scores: scores, dosha_taken_at: takenAt })
+    .update({
+      primary_dosha: primary,
+      dosha_scores: scores,
+      dosha_taken_at: takenAt,
+      dosha_answers: answers,
+    })
     .eq('id', userId);
   return { error: error?.message ?? null };
 }
@@ -59,18 +68,24 @@ export async function persistDosha(
  */
 export async function syncDoshaOnAuth(
   userId: string,
-  local: Pick<OnboardingState, 'dosha' | 'doshaScores' | 'doshaTakenAt'>,
+  local: Pick<OnboardingState, 'dosha' | 'doshaScores' | 'doshaTakenAt' | 'answers'>,
   update: (patch: Partial<OnboardingState>) => void,
 ): Promise<void> {
   try {
     const server = await fetchProfileDosha(userId);
     if (server) {
-      update({ dosha: server.primary, doshaScores: server.scores, doshaTakenAt: server.takenAt });
+      update({
+        dosha: server.primary,
+        doshaScores: server.scores,
+        doshaTakenAt: server.takenAt,
+        // Older rows (pre-0004) have no answers — keep whatever is already local.
+        ...(server.answers ? { answers: server.answers } : {}),
+      });
       return;
     }
     if (local.dosha && local.doshaScores) {
       const takenAt = local.doshaTakenAt ?? new Date().toISOString();
-      const { error } = await persistDosha(userId, local.dosha, local.doshaScores, takenAt);
+      const { error } = await persistDosha(userId, local.dosha, local.doshaScores, takenAt, local.answers);
       if (error) console.warn('[dosha] back-fill failed:', error);
       else update({ doshaTakenAt: takenAt });
     }

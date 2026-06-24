@@ -1,6 +1,7 @@
+import { QUESTIONS } from '@/quiz/questions';
 import { computeResult } from '@/quiz/scoring';
 import type { Answer } from '@/quiz/types';
-import { asTally, isDoshaKey } from './dosha-encoding';
+import { asAnswers, asTally, isDoshaKey } from './dosha-encoding';
 
 describe('isDoshaKey', () => {
   it('accepts the three dosha keys and rejects anything else', () => {
@@ -35,5 +36,37 @@ describe('asTally', () => {
     expect(asTally(null)).toBeNull();
     expect(asTally(undefined)).toBeNull();
     expect(asTally('vata')).toBeNull();
+  });
+});
+
+describe('asAnswers', () => {
+  it('round-trips a full answers array through jsonb', () => {
+    const answers: Answer[] = QUESTIONS.map((_, i) =>
+      i % 3 === 0 ? 'vata' : i % 3 === 1 ? 'pitta' : 'kapha',
+    );
+    expect(asAnswers(JSON.parse(JSON.stringify(answers)))).toEqual(answers);
+  });
+
+  it('always returns exactly QUESTIONS.length entries', () => {
+    expect(asAnswers([])).toHaveLength(QUESTIONS.length);
+    expect(asAnswers(['vata'])).toHaveLength(QUESTIONS.length);
+    // extra entries beyond the quiz length are dropped
+    expect(asAnswers(Array(QUESTIONS.length + 5).fill('vata'))).toHaveLength(QUESTIONS.length);
+  });
+
+  it('preserves nulls and coerces invalid entries to null', () => {
+    const input = ['vata', null, 'bogus', 42, 'kapha'];
+    const out = asAnswers(input)!;
+    expect(out[0]).toBe('vata');
+    expect(out[1]).toBeNull();
+    expect(out[2]).toBeNull();
+    expect(out[3]).toBeNull();
+    expect(out[4]).toBe('kapha');
+  });
+
+  it('returns null for non-array input', () => {
+    expect(asAnswers(null)).toBeNull();
+    expect(asAnswers({ 0: 'vata' })).toBeNull();
+    expect(asAnswers('vata')).toBeNull();
   });
 });

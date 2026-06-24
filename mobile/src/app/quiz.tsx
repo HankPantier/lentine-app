@@ -94,7 +94,7 @@ export default function QuizRoute() {
     // email confirmation still pending has no session, so the reconcile-on-auth pass backfills
     // it on their next sign-in (see syncDoshaOnAuth).
     if (state.userId) {
-      persistDosha(state.userId, result.primary, result.tally, takenAt).then(({ error }) => {
+      persistDosha(state.userId, result.primary, result.tally, takenAt, state.answers).then(({ error }) => {
         if (error) console.warn('[dosha] save failed:', error);
       });
     }
