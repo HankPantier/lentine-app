@@ -1,8 +1,9 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, View } from 'react-native';
-import { Button, Eyebrow, Heading, Screen, Text, Wordmark } from '@/components';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, View } from 'react-native';
+import { ArticleCard, Button, Eyebrow, Heading, Screen, Text, Wordmark } from '@/components';
 import { DOSHA_CONTENT } from '@/content/dosha-content';
+import { type Article, fetchArticles } from '@/lib/articles';
 import { formatLongDate } from '@/lib/format';
 import { TIER_NAME } from '@/onboarding/pricing';
 import { useOnboarding } from '@/onboarding/state';
@@ -45,6 +46,18 @@ export default function HomeRoute() {
   // Snapshot "now" once per mount (a lazy initializer keeps render pure — no Date.now() call
   // on every render). Millisecond precision isn't needed for a multi-day snooze window.
   const [now] = useState(() => Date.now());
+
+  // Latest WordPress articles. null = still loading; [] = loaded with nothing to show.
+  const [articles, setArticles] = useState<Article[] | null>(null);
+  useEffect(() => {
+    let active = true;
+    fetchArticles(6).then((a) => {
+      if (active) setArticles(a);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Nudge un-quizzed users to take the dosha quiz, but only every few days once dismissed.
   const showQuizNudge =
@@ -151,6 +164,32 @@ export default function HomeRoute() {
               </Text>
             </Card>
           </Pressable>
+        </View>
+
+        {/* Latest from Lentine — real articles pulled from WordPress */}
+        <View>
+          <Eyebrow style={{ marginBottom: 8 }}>Latest from Lentine</Eyebrow>
+          {articles === null ? (
+            <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+              <ActivityIndicator color={colors.blue} />
+            </View>
+          ) : articles.length === 0 ? (
+            <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18 }}>
+              <Text style={{ color: fg.secondary, fontSize: 14 }}>
+                Couldn&rsquo;t load articles right now. Pull to refresh later.
+              </Text>
+            </View>
+          ) : (
+            <View style={{ gap: 14 }}>
+              {articles.map((a) => (
+                <ArticleCard
+                  key={a.id}
+                  article={a}
+                  onPress={() => router.push({ pathname: '/articles/[slug]', params: { slug: a.slug } })}
+                />
+              ))}
+            </View>
+          )}
         </View>
 
         {/* Membership — the member's real subscription (returning members) or selected plan */}
