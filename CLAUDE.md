@@ -28,6 +28,12 @@ bridge are the foundation. See [README.md](README.md) for full architecture.
 
 ## Project-specific guardrails
 
+- **Cross-platform first.** This ships to iOS + Android + web from one Expo codebase.
+  Everything must work on all three — no web-only assumptions. No direct
+  `window`/`document`/`localStorage`; use RN/Expo primitives (`AsyncStorage`,
+  `expo-linking`, `Platform`). Auth redirects (recovery/confirmation) must resolve on both
+  the `lentine://` deep-link scheme (native) and the dev URL (web) — branch on
+  `Platform.OS`. Keep every code path native-safe even when only web is verified.
 - **The WordPress site is LIVE with paying subscribers.** Build and test against staging
   first. Never run migration or schema changes directly against production without an
   explicit go-ahead and a backup.

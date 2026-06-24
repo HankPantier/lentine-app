@@ -14,19 +14,33 @@ export type Tier = 'recipe' | 'back_to_forward';
 export type Interval = 'month' | 'year';
 export type Mode = 'new' | 'migrating';
 
+/** A returning member's existing subscription, read from Supabase after sign-in. */
+export interface Subscription {
+  tier: Tier;
+  interval: Interval;
+  status: string;
+  currentPeriodEnd: string | null;
+}
+
 export interface OnboardingState {
   mode: Mode | null;
   email: string;
   password: string;
   firstName: string;
   lastName: string;
+  /** Supabase auth user id once signed in / signed up; null while unauthenticated. */
+  userId: string | null;
   dosha: DoshaKey | null;
   tier: Tier | null;
   interval: Interval | null;
+  /** Real subscription pulled from Supabase for a returning member (null for new users). */
+  subscription: Subscription | null;
   /** One answer slot per quiz question; null until answered. */
   answers: Answer[];
   quizDone: boolean;
   completed: boolean;
+  /** Epoch ms a "take the dosha quiz" home nudge was last dismissed; null = never. */
+  quizNudgeDismissedAt: number | null;
 }
 
 const STORAGE_KEY = 'la_onb_state_v1';
@@ -42,12 +56,15 @@ function initialState(): OnboardingState {
     password: '',
     firstName: '',
     lastName: '',
+    userId: null,
     dosha: null,
     tier: null,
     interval: null,
+    subscription: null,
     answers: emptyAnswers(),
     quizDone: false,
     completed: false,
+    quizNudgeDismissedAt: null,
   };
 }
 

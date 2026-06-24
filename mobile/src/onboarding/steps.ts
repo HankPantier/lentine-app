@@ -6,8 +6,8 @@ import type { Mode } from './state';
  * skipping those steps. `home` is the post-onboarding destination, not a progress step.
  */
 const FLOW_STEPS = {
-  new: ['signup', 'profile', 'quiz', 'result', 'tier', 'billing', 'payment', 'notifications'],
-  migrating: ['signin', 'quiz', 'result', 'tier_confirm', 'notifications'],
+  new: ['signup', 'profile', 'quiz_intro', 'quiz', 'result', 'tier', 'billing', 'payment', 'notifications'],
+  migrating: ['signin', 'quiz_intro', 'quiz', 'result', 'tier_confirm', 'notifications'],
 } as const;
 
 export type Flow = keyof typeof FLOW_STEPS;

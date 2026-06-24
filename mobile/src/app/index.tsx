@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import { Button, DarkScreen, Eyebrow, Rule, Text, Wordmark } from '@/components';
+import { supabase } from '@/lib/supabase';
 import { useOnboarding } from '@/onboarding/state';
 import { colors, fg } from '@/theme/tokens';
 
@@ -16,6 +17,20 @@ export default function SplashRoute() {
     }
   }, [hydrated, state.completed, router]);
 
+  // Restore the Supabase user id into onboarding state if a session is still active
+  // (e.g. after a reload) but state was cleared. Doesn't force navigation on its own.
+  useEffect(() => {
+    let active = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (active && data.session && !state.userId) {
+        update({ userId: data.session.user.id });
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [state.userId, update]);
+
   // Wait for persisted state to load so we don't flash the splash to a returning user.
   if (!hydrated || state.completed) {
     return null;
@@ -27,8 +42,7 @@ export default function SplashRoute() {
   };
 
   const signIn = () => {
-    // M1: the migrating-user branch (real login/reset) lands in M2. For now the
-    // existing-member path runs through the same mocked flow.
+    // Returning member: real Supabase sign-in / first-login set-password on the next screen.
     update({ mode: 'migrating' });
     router.push('/signup');
   };
