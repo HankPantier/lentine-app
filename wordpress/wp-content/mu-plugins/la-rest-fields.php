@@ -88,8 +88,12 @@ add_action(
 			'/recipe/(?P<slug>[a-zA-Z0-9-]+)',
 			array(
 				'methods'             => 'GET',
+				// Privileged route: ONLY the edge function may call it, authenticating as the admin
+				// Application-Password user. The per-user TIER decision is made upstream in the edge
+				// function from the caller's Supabase JWT. Requiring manage_options stops any
+				// logged-in WP member from pulling paid recipe bodies directly (paywall bypass).
 				'permission_callback' => function () {
-					return current_user_can( 'read' );
+					return current_user_can( 'manage_options' );
 				},
 				'callback'            => 'la_recipe_body_route',
 			)
