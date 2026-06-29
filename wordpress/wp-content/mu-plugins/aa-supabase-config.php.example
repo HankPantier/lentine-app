@@ -1,0 +1,24 @@
+<?php
+/**
+ * Supabase bridge config (mu-plugin).
+ *
+ * Defines the constants the supabase-bridge reads. Lives in mu-plugins because WP Engine's
+ * wp-config edits weren't taking effect (opcache). The "aa-" prefix loads it before
+ * supabase-bridge.php. Constants are only set if not already defined, so a wp-config definition
+ * (if it ever starts working) still wins.
+ *
+ * ⚠️ Fill the two key values below from Supabase → Project Settings → API on the SERVER copy only.
+ * This file then holds the SERVICE-ROLE key — keep it on the server only and do NOT commit the
+ * filled-in version to git. (The repo copy stays as placeholders.)
+ */
+if ( ! defined( 'ABSPATH' ) ) { exit; }
+
+if ( ! defined( 'SUPABASE_URL' ) ) {
+	define( 'SUPABASE_URL', 'https://cnarqxhknjtqaovmzsco.supabase.co' );
+}
+if ( ! defined( 'SUPABASE_ANON_KEY' ) ) {
+	define( 'SUPABASE_ANON_KEY', 'PASTE_ANON_KEY_HERE' );
+}
+if ( ! defined( 'SUPABASE_SERVICE_ROLE_KEY' ) ) {
+	define( 'SUPABASE_SERVICE_ROLE_KEY', 'PASTE_SERVICE_ROLE_KEY_HERE' );
+}

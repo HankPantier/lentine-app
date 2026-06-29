@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Platform, Pressable } from 'react-native';
 import { Button, Eyebrow, Field, Heading, OnbTopBar, Screen, Text } from '@/components';
-import { syncDoshaOnAuth } from '@/lib/profile';
+import { fetchProfileName, syncDoshaOnAuth } from '@/lib/profile';
 import { supabase } from '@/lib/supabase';
 import { fetchSubscription } from '@/lib/subscription';
 import { useOnboarding } from '@/onboarding/state';
@@ -37,7 +37,16 @@ export default function SignupRoute() {
       setBusy(false);
       return;
     }
-    update({ userId: data.user.id, subscription: await fetchSubscription(data.user.id) });
+    // Pull their subscription (for tier-confirm) and name (for the dashboard greeting) together.
+    const [subscription, name] = await Promise.all([
+      fetchSubscription(data.user.id),
+      fetchProfileName(data.user.id),
+    ]);
+    update({
+      userId: data.user.id,
+      subscription,
+      ...(name ? { firstName: name.firstName, lastName: name.lastName } : {}),
+    });
     // Restore their Dosha from Supabase (or back-fill it) so it survives across devices.
     await syncDoshaOnAuth(data.user.id, state, update);
     setBusy(false);

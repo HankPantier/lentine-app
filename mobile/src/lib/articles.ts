@@ -4,6 +4,10 @@ import { supabase } from './supabase';
 export interface Article {
   id: number;
   slug: string;
+  /** Which WordPress post type this came from — drives gating and the in-app type filter. */
+  type: 'post' | 'recipe';
+  /** Per-item access flag from the WP `visibility` ACF field; `paid` items gate by tier. */
+  visibility: 'free' | 'paid';
   title: string;
   excerpt: string;
   image: string | null;

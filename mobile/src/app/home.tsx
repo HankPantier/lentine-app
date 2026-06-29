@@ -1,9 +1,10 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { ArticleCard, Button, Eyebrow, Heading, Screen, Text, Wordmark } from '@/components';
 import { DOSHA_CONTENT } from '@/content/dosha-content';
 import { type Article, fetchArticles } from '@/lib/articles';
+import { canAccess, entitledTier } from '@/lib/entitlement';
 import { formatLongDate } from '@/lib/format';
 import { TIER_NAME } from '@/onboarding/pricing';
 import { useOnboarding } from '@/onboarding/state';
@@ -11,6 +12,31 @@ import { DOSHA } from '@/quiz/doshas';
 import { colors, fg } from '@/theme/tokens';
 
 const SNOOZE_MS = 3 * 24 * 60 * 60 * 1000; // re-show the quiz nudge ~3 days after dismissal
+
+/** Ways to order the "Latest from Lentine" feed in-app. All items stay visible; only order changes. */
+type SortMode = 'recent' | 'type' | 'category';
+const SORTS: { key: SortMode; label: string }[] = [
+  { key: 'recent', label: 'Recent' },
+  { key: 'type', label: 'Type' },
+  { key: 'category', label: 'Category' },
+];
+
+/** Pure, deterministic sort of the merged posts+recipes feed; ties always fall back to newest-first. */
+function sortArticles(list: Article[], mode: SortMode): Article[] {
+  const byDateDesc = (a: Article, b: Article) => b.date.localeCompare(a.date);
+  const copy = list.slice();
+  if (mode === 'type') {
+    return copy.sort((a, b) => (a.type === b.type ? byDateDesc(a, b) : a.type.localeCompare(b.type)));
+  }
+  if (mode === 'category') {
+    return copy.sort((a, b) => {
+      const ca = a.category ?? '~'; // nulls sort last
+      const cb = b.category ?? '~';
+      return ca === cb ? byDateDesc(a, b) : ca.localeCompare(cb);
+    });
+  }
+  return copy.sort(byDateDesc);
+}
 
 const STATUS_LABEL: Record<string, string> = {
   active: 'Active',
@@ -47,17 +73,23 @@ export default function HomeRoute() {
   // on every render). Millisecond precision isn't needed for a multi-day snooze window.
   const [now] = useState(() => Date.now());
 
-  // Latest WordPress articles. null = still loading; [] = loaded with nothing to show.
+  // Latest WordPress articles (posts + recipes). null = still loading; [] = nothing to show.
   const [articles, setArticles] = useState<Article[] | null>(null);
+  const [sort, setSort] = useState<SortMode>('recent');
   useEffect(() => {
     let active = true;
-    fetchArticles(6).then((a) => {
+    fetchArticles(12).then((a) => {
       if (active) setArticles(a);
     });
     return () => {
       active = false;
     };
   }, []);
+
+  // The tier that currently unlocks bodies (null unless an active/trialing subscription). Drives
+  // the instant lock badges; the wp-articles edge function re-verifies the same rule server-side.
+  const tier = entitledTier(sub);
+  const sortedArticles = useMemo(() => (articles ? sortArticles(articles, sort) : null), [articles, sort]);
 
   // Nudge un-quizzed users to take the dosha quiz, but only every few days once dismissed.
   const showQuizNudge =
@@ -166,29 +198,66 @@ export default function HomeRoute() {
           </Pressable>
         </View>
 
-        {/* Latest from Lentine — real articles pulled from WordPress */}
+        {/* Latest from Lentine — real posts + recipes pulled from WordPress */}
         <View>
           <Eyebrow style={{ marginBottom: 8 }}>Latest from Lentine</Eyebrow>
-          {articles === null ? (
+          {sortedArticles === null ? (
             <View style={{ paddingVertical: 24, alignItems: 'center' }}>
               <ActivityIndicator color={colors.blue} />
             </View>
-          ) : articles.length === 0 ? (
+          ) : sortedArticles.length === 0 ? (
             <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18 }}>
               <Text style={{ color: fg.secondary, fontSize: 14 }}>
                 Couldn&rsquo;t load articles right now. Pull to refresh later.
               </Text>
             </View>
           ) : (
-            <View style={{ gap: 14 }}>
-              {articles.map((a) => (
-                <ArticleCard
-                  key={a.id}
-                  article={a}
-                  onPress={() => router.push({ pathname: '/articles/[slug]', params: { slug: a.slug } })}
-                />
-              ))}
-            </View>
+            <>
+              {sortedArticles.length > 1 ? (
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                  {SORTS.map((s) => {
+                    const selected = sort === s.key;
+                    return (
+                      <Pressable
+                        key={s.key}
+                        onPress={() => setSort(s.key)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Sort by ${s.label}`}
+                        accessibilityState={{ selected }}
+                        style={{
+                          paddingVertical: 6,
+                          paddingHorizontal: 12,
+                          borderWidth: 1,
+                          borderColor: selected ? colors.blue : colors.gray,
+                          backgroundColor: selected ? colors.blue : colors.white,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            letterSpacing: 0.5,
+                            textTransform: 'uppercase',
+                            color: selected ? colors.white : fg.secondary,
+                          }}
+                        >
+                          {s.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : null}
+              <View style={{ gap: 14 }}>
+                {sortedArticles.map((a) => (
+                  <ArticleCard
+                    key={a.id}
+                    article={a}
+                    locked={!canAccess(a, tier)}
+                    onPress={() => router.push({ pathname: '/articles/[slug]', params: { slug: a.slug } })}
+                  />
+                ))}
+              </View>
+            </>
           )}
         </View>
 

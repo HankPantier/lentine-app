@@ -124,6 +124,11 @@ export default function ArticleRoute() {
             a: { color: colors.blueBright, textDecorationLine: 'none' },
             h2: { fontFamily: fonts.bold, fontSize: 22, lineHeight: 30, marginTop: 8 },
             h3: { fontFamily: fonts.semibold, fontSize: 19, lineHeight: 26, marginTop: 8 },
+            // Recipe bodies (assembled by the edge function) use h4 section headings + ul/ol lists.
+            h4: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 22, marginTop: 12, marginBottom: 2 },
+            p: { marginTop: 6, marginBottom: 6 },
+            ul: { marginTop: 4, marginBottom: 8 },
+            ol: { marginTop: 4, marginBottom: 8 },
             strong: { fontFamily: fonts.bold },
             em: { fontFamily: fonts.italic },
             li: { lineHeight: 26 },

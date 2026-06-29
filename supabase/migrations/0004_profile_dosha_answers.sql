@@ -1,6 +1,6 @@
 -- 0004 — Persist the per-question Dosha answers on profiles
 -- Paste this whole file into the Supabase SQL editor (STAGING project) and run it.
--- Additive and safe to re-run.
+  -- Additive and safe to re-run.
 --
 -- 0003 stored the result (primary + tally). This stores the raw answers behind it so the
 -- quiz can be re-loaded and edited later: a JSON array, one entry per question, each the

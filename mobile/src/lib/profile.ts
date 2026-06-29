@@ -1,7 +1,24 @@
 import type { OnboardingState } from '@/onboarding/state';
 import type { Answer, DoshaKey, Tally } from '@/quiz/types';
 import { asAnswers, asTally, isDoshaKey } from './dosha-encoding';
+import { type ProfileName, splitName } from './name';
 import { supabase } from './supabase';
+
+/**
+ * Read the signed-in member's name from their profile `display_name` (RLS scopes it to their own
+ * row). Returns null when there's no usable name — caller then leaves local name state untouched.
+ */
+export async function fetchProfileName(userId: string): Promise<ProfileName | null> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('display_name')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (error || !data?.display_name) return null;
+  const name = splitName(data.display_name as string);
+  return name.firstName ? name : null;
+}
 
 /** The Dosha result as stored on the member's profile row. */
 export interface ProfileDosha {
