@@ -136,6 +136,13 @@ async function resolveTier(authHeader: string | null): Promise<Tier | null> {
   return slug === 'recipe' || slug === 'back_to_forward' ? slug : null;
 }
 
+/** The recipe's dosha labels, lowercased (ACF `dosha` array field, e.g. ["Vata","Pitta"]). */
+// deno-lint-ignore no-explicit-any
+function readDoshas(post: any): string[] {
+  const d = post?.dosha;
+  return Array.isArray(d) ? d.map((x: unknown) => String(x).toLowerCase()) : [];
+}
+
 /** Fetch the most recent items of a post type, normalized; [] on any WP error. */
 async function fetchType(type: ContentType, perPage: number) {
   const base = type === 'recipe' ? 'recipe' : 'posts';
@@ -182,7 +189,7 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
   if (!WP_BASE_URL) return json({ error: 'WP_BASE_URL not configured' }, 500);
 
-  let body: { action?: string; slug?: string; perPage?: number };
+  let body: { action?: string; slug?: string; perPage?: number; dosha?: string };
   try {
     body = await req.json();
   } catch {
@@ -196,6 +203,25 @@ Deno.serve(async (req) => {
     const articles = [...posts, ...recipes]
       .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
       .slice(0, perPage);
+    return json({ articles });
+  }
+
+  // --- today (public): recipes matched to the member's dosha, newest-first ---
+  // The ACF `dosha` field isn't a queryable taxonomy, so we pull recent recipes and filter here.
+  // Items carry visibility so the app draws lock badges; bodies stay gated behind `article`.
+  if (body.action === 'today') {
+    const dosha = String(body.dosha ?? '').toLowerCase();
+    if (dosha !== 'vata' && dosha !== 'pitta' && dosha !== 'kapha') {
+      return json({ error: 'invalid dosha' }, 400);
+    }
+    const perPage = Math.min(Math.max(body.perPage ?? 6, 1), 12);
+    const res = await fetch(wpUrl('recipe?_embed=1&per_page=24&orderby=date&order=desc'));
+    if (!res.ok) return json({ articles: [] });
+    const items = await res.json();
+    const articles = (Array.isArray(items) ? items : [])
+      .filter((p) => readDoshas(p).includes(dosha))
+      .slice(0, perPage)
+      .map((p) => toArticle(p, 'recipe'));
     return json({ articles });
   }
 

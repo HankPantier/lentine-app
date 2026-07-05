@@ -1,7 +1,10 @@
 import { useRouter } from 'expo-router';
-import { Pressable, View } from 'react-native';
-import { Button, Eyebrow, Heading, Screen, Text } from '@/components';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, View } from 'react-native';
+import { ArticleCard, Button, Eyebrow, Heading, Screen, Text } from '@/components';
 import { DOSHA_CONTENT, type ContentItem } from '@/content/dosha-content';
+import { type Article, fetchToday } from '@/lib/articles';
+import { canAccess, entitledTier } from '@/lib/entitlement';
 import { useOnboarding } from '@/onboarding/state';
 import { DOSHA } from '@/quiz/doshas';
 import { colors, fg } from '@/theme/tokens';
@@ -26,6 +29,18 @@ export default function TodayRoute() {
   const router = useRouter();
   const { state } = useOnboarding();
   const dosha = state.dosha;
+
+  // Real dosha-matched recipes from WordPress. null = loading; [] = none/failed → fallback note.
+  const [recipes, setRecipes] = useState<Article[] | null>(null);
+  const tier = entitledTier(state.subscription);
+  useEffect(() => {
+    if (!dosha) return;
+    let active = true;
+    fetchToday(dosha).then((r) => active && setRecipes(r));
+    return () => {
+      active = false;
+    };
+  }, [dosha]);
 
   if (!dosha) {
     return (
@@ -80,22 +95,41 @@ export default function TodayRoute() {
           <ContentCard item={content.recipe} />
         </View>
 
-        {/* Placeholder: this is where the team's dosha-specific content will land. */}
-        <View
-          style={{
-            borderWidth: 1,
-            borderColor: colors.blueLight,
-            borderStyle: 'dashed',
-            padding: 18,
-          }}
-        >
-          <Eyebrow color={colors.blueBright} style={{ marginBottom: 6 }}>
-            More coming soon
-          </Eyebrow>
-          <Text style={{ color: fg.secondary, fontSize: 14, lineHeight: 21 }}>
-            Guided practices, seasonal recipes, and Back to Forward lessons tuned to your{' '}
-            {d.name} constitution are on the way.
-          </Text>
+        {/* Real dosha-matched recipes pulled from WordPress. */}
+        <View>
+          <Eyebrow style={{ marginBottom: 8 }}>{`${d.name} recipes`}</Eyebrow>
+          {recipes === null ? (
+            <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+              <ActivityIndicator color={colors.blue} />
+            </View>
+          ) : recipes.length === 0 ? (
+            <View
+              style={{
+                borderWidth: 1,
+                borderColor: colors.blueLight,
+                borderStyle: 'dashed',
+                padding: 18,
+              }}
+            >
+              <Eyebrow color={colors.blueBright} style={{ marginBottom: 6 }}>
+                More coming soon
+              </Eyebrow>
+              <Text style={{ color: fg.secondary, fontSize: 14, lineHeight: 21 }}>
+                Fresh recipes tuned to your {d.name} constitution are on the way.
+              </Text>
+            </View>
+          ) : (
+            <View style={{ gap: 14 }}>
+              {recipes.map((a) => (
+                <ArticleCard
+                  key={a.id}
+                  article={a}
+                  locked={!canAccess(a, tier)}
+                  onPress={() => router.push({ pathname: '/articles/[slug]', params: { slug: a.slug } })}
+                />
+              ))}
+            </View>
+          )}
         </View>
       </View>
     </Screen>

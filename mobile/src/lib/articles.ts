@@ -39,6 +39,22 @@ export async function fetchArticles(perPage = 10): Promise<Article[]> {
 }
 
 /**
+ * Recipes matched to the member's dosha for the /today landing (public list). Calls the
+ * wp-articles `today` action, which filters recipes by their ACF dosha tag. Returns [] on any
+ * failure so /today degrades to its curated fallback content.
+ */
+export async function fetchToday(dosha: 'vata' | 'pitta' | 'kapha', perPage = 6): Promise<Article[]> {
+  const { data, error } = await supabase.functions.invoke('wp-articles', {
+    body: { action: 'today', dosha, perPage },
+  });
+  if (error || !data?.articles) {
+    console.warn('[articles] today failed:', error?.message ?? 'no data');
+    return [];
+  }
+  return data.articles as Article[];
+}
+
+/**
  * A single article by slug. supabase-js attaches the signed-in user's JWT to the invoke, so
  * the function can verify entitlement and return the full body to paid members. Returns null
  * on failure.

@@ -47,6 +47,38 @@ async function seed(page: Page, json: string) {
   );
 }
 
+/**
+ * Mock the wp-articles edge function's `today` action so /today's recipe feed is deterministic and
+ * backend-free. `withRecipe` false → empty feed (the "More coming soon" fallback shows).
+ */
+async function mockToday(page: Page, withRecipe: boolean) {
+  const recipe = {
+    id: 900,
+    slug: 'pitta-cooling-bowl',
+    type: 'recipe',
+    visibility: 'paid',
+    title: 'Pitta Cooling Bowl',
+    excerpt: 'A cooling summer bowl.',
+    image: null,
+    category: 'Salads',
+    date: '2026-06-20T10:00:00',
+    link: 'https://lentinealexis.com/recipe/pitta-cooling-bowl',
+  };
+  await page.route('**/functions/v1/wp-articles', async (route) => {
+    const cors = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 200, headers: cors, body: 'ok' });
+    const body = JSON.parse(route.request().postData() || '{}');
+    if (body.action === 'today') {
+      return route.fulfill({
+        status: 200,
+        headers: cors,
+        body: JSON.stringify({ articles: withRecipe ? [recipe] : [] }),
+      });
+    }
+    return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ articles: [] }) });
+  });
+}
+
 test('dashboard shows the member greeting, dosha day, and real subscription', async ({ page }) => {
   await seed(page, completedState());
   await page.goto('/home');
@@ -60,6 +92,7 @@ test('dashboard shows the member greeting, dosha day, and real subscription', as
 
 test('the home teaser navigates to the /today landing', async ({ page }) => {
   await seed(page, completedState());
+  await mockToday(page, true);
   await page.goto('/home');
 
   await page.getByText('See today').click();
@@ -70,14 +103,25 @@ test('the home teaser navigates to the /today landing', async ({ page }) => {
   await expect(page.getByText('For your Pitta', { exact: true })).toBeVisible();
 });
 
-test('/today renders dosha-personalized content', async ({ page }) => {
+test('/today renders dosha-personalized content + the real recipe feed', async ({ page }) => {
   // Load /today directly so home isn't mounted and every content string is unambiguous.
   await seed(page, completedState());
+  await mockToday(page, true);
   await page.goto('/today');
 
   await expect(page.getByText('Cool the fire', { exact: false })).toBeVisible();
   await expect(page.getByText('Cooling breath by a window')).toBeVisible();
   await expect(page.getByText('Ginger lentil soup')).toHaveCount(0); // kapha content, not pitta
+  // The dosha-matched recipe feed renders (no longer a static "coming soon" placeholder).
+  await expect(page.getByText('Pitta Cooling Bowl')).toBeVisible();
+  await expect(page.getByText('More coming soon')).toHaveCount(0);
+});
+
+test('/today falls back to the coming-soon note when no recipes match', async ({ page }) => {
+  await seed(page, completedState());
+  await mockToday(page, false);
+  await page.goto('/today');
+
   await expect(page.getByText('More coming soon')).toBeVisible();
 });
 
