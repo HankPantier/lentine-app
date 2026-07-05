@@ -42,6 +42,11 @@ export default function AccountRoute() {
   const [savingName, setSavingName] = useState(false);
   const [nameMsg, setNameMsg] = useState<string | null>(null);
 
+  const [email, setEmail] = useState(state.email);
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [emailMsg, setEmailMsg] = useState<string | null>(null);
+  const [emailErr, setEmailErr] = useState<string | null>(null);
+
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
   const [savingPw, setSavingPw] = useState(false);
@@ -66,6 +71,30 @@ export default function AccountRoute() {
       setNameMsg('Saved.');
     }
     setSavingName(false);
+  };
+
+  const saveEmail = async () => {
+    setEmailErr(null);
+    setEmailMsg(null);
+    const next = email.trim();
+    if (!next.includes('@')) {
+      setEmailErr('Enter a valid email');
+      return;
+    }
+    if (next === state.email) {
+      setEmailErr('That’s already your email');
+      return;
+    }
+    setSavingEmail(true);
+    // Supabase sends a confirmation link to the new address; the email only changes once
+    // confirmed, so we don't update local state here — it syncs after the member confirms.
+    const { error } = await supabase.auth.updateUser({ email: next });
+    setSavingEmail(false);
+    if (error) {
+      setEmailErr(error.message);
+      return;
+    }
+    setEmailMsg('Check your new inbox to confirm the change.');
   };
 
   const savePassword = async () => {
@@ -202,13 +231,6 @@ export default function AccountRoute() {
       <Section title="Account details">
         <Field label="First name" value={firstName} onChangeText={setFirstName} autoCapitalize="words" autoComplete="name" />
         <Field label="Last name" value={lastName} onChangeText={setLastName} autoCapitalize="words" />
-        <View style={{ marginBottom: 8 }}>
-          <Eyebrow style={{ marginBottom: 6 }}>Email</Eyebrow>
-          <Text style={{ color: fg.secondary, fontSize: 16 }}>{state.email || '—'}</Text>
-          <Text italic style={{ color: fg.tertiary, fontSize: 12, marginTop: 4 }}>
-            Email changes are coming soon.
-          </Text>
-        </View>
         <Button
           label={savingName ? 'Saving…' : 'Save changes'}
           size="sm"
@@ -219,6 +241,34 @@ export default function AccountRoute() {
         {nameMsg ? (
           <Text italic style={{ color: fg.secondary, fontSize: 12, marginTop: 8 }}>
             {nameMsg}
+          </Text>
+        ) : null}
+      </Section>
+
+      {/* Email */}
+      <Section title="Email">
+        <Field
+          label="Email address"
+          value={email}
+          onChangeText={(t) => {
+            setEmail(t);
+            if (emailErr) setEmailErr(null);
+          }}
+          placeholder="you@example.com"
+          keyboardType="email-address"
+          autoComplete="email"
+          autoCapitalize="none"
+          error={emailErr ?? undefined}
+        />
+        <Button
+          label={savingEmail ? 'Sending…' : 'Update email'}
+          size="sm"
+          disabled={savingEmail || !email.includes('@') || email.trim() === state.email}
+          onPress={saveEmail}
+        />
+        {emailMsg ? (
+          <Text italic style={{ color: fg.secondary, fontSize: 12, marginTop: 8, lineHeight: 18 }}>
+            {emailMsg}
           </Text>
         ) : null}
       </Section>
