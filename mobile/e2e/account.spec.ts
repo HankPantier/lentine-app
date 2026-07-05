@@ -104,3 +104,28 @@ test('cannot submit the unchanged email', async ({ page }) => {
   // Field starts pre-filled with the current email → the button is disabled.
   await expect(page.getByRole('button', { name: 'Update email' })).toBeDisabled();
 });
+
+test('notification toggles persist to the profile row', async ({ page }) => {
+  // Seed with prefs already set so the checkboxes hydrate from state deterministically.
+  await seed(page, completedState({ notificationPrefs: { rituals: true, recipes: true, btf: true } }));
+
+  // Capture the PATCH body the toggle sends to Supabase (profiles update).
+  let patched: unknown = null;
+  await page.route('**/rest/v1/profiles**', async (route) => {
+    const cors = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
+    const req = route.request();
+    if (req.method() === 'OPTIONS') return route.fulfill({ status: 200, headers: cors, body: 'ok' });
+    if (req.method() === 'PATCH') {
+      patched = JSON.parse(req.postData() || '{}');
+      return route.fulfill({ status: 200, headers: cors, body: JSON.stringify([{}]) });
+    }
+    return route.fulfill({ status: 200, headers: cors, body: JSON.stringify([]) });
+  });
+
+  await page.goto('/account');
+  // Uncheck "Daily rituals".
+  await page.getByRole('checkbox', { name: 'Daily rituals' }).click();
+  await expect(page.getByText('Saved.')).toBeVisible();
+
+  expect(patched).toMatchObject({ notification_prefs: { rituals: false, recipes: true, btf: true } });
+});

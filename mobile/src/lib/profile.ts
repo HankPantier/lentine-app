@@ -2,6 +2,7 @@ import type { OnboardingState } from '@/onboarding/state';
 import type { Answer, DoshaKey, Tally } from '@/quiz/types';
 import { asAnswers, asTally, isDoshaKey } from './dosha-encoding';
 import { type ProfileName, splitName } from './name';
+import { type NotificationPrefs, normalizePrefs } from './notification-prefs';
 import { supabase } from './supabase';
 
 /**
@@ -18,6 +19,37 @@ export async function fetchProfileName(userId: string): Promise<ProfileName | nu
   if (error || !data?.display_name) return null;
   const name = splitName(data.display_name as string);
   return name.firstName ? name : null;
+}
+
+/**
+ * Read the member's notification preferences from their profile (RLS scopes it to their own row).
+ * Returns null on error / no row so the caller keeps whatever is already local; a present-but-empty
+ * `notification_prefs` normalizes to the opted-in default.
+ */
+export async function fetchNotificationPrefs(userId: string): Promise<NotificationPrefs | null> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('notification_prefs')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return normalizePrefs(data.notification_prefs);
+}
+
+/**
+ * Persist the member's notification preferences. RLS ("profiles: update own") allows a signed-in
+ * user to write their own row only. Best-effort — returns the error message for the caller to show.
+ */
+export async function persistNotificationPrefs(
+  userId: string,
+  prefs: NotificationPrefs,
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ notification_prefs: prefs })
+    .eq('id', userId);
+  return { error: error?.message ?? null };
 }
 
 /** The Dosha result as stored on the member's profile row. */

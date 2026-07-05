@@ -2,6 +2,12 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Button, Eyebrow, Heading, OnbTopBar, Screen, Text } from '@/components';
+import {
+  DEFAULT_NOTIFICATION_PREFS,
+  type NotificationPrefs,
+  NO_NOTIFICATION_PREFS,
+} from '@/lib/notification-prefs';
+import { persistNotificationPrefs } from '@/lib/profile';
 import { useOnboarding } from '@/onboarding/state';
 import { progress } from '@/onboarding/steps';
 import { colors, fg } from '@/theme/tokens';
@@ -56,16 +62,19 @@ function CheckRow({
 export default function NotificationsRoute() {
   const router = useRouter();
   const { state, update } = useOnboarding();
-  const [checked, setChecked] = useState<Record<string, boolean>>({
-    rituals: true,
-    recipes: true,
-    btf: true,
-  });
+  const [checked, setChecked] = useState<NotificationPrefs>(
+    state.notificationPrefs ?? DEFAULT_NOTIFICATION_PREFS,
+  );
 
   const { current, total } = progress(state.mode, 'notifications');
 
-  const finish = () => {
-    update({ completed: true });
+  // Save the member's choice locally + to their profile (best-effort), then finish onboarding.
+  // "Turn on" persists the toggles as-is; "Maybe later" opts out of every category.
+  const finish = (prefs: NotificationPrefs) => {
+    update({ completed: true, notificationPrefs: prefs });
+    if (state.userId) {
+      persistNotificationPrefs(state.userId, prefs).catch(() => {});
+    }
     router.replace('/home');
   };
 
@@ -89,15 +98,21 @@ export default function NotificationsRoute() {
             key={p.id}
             label={p.label}
             detail={p.detail}
-            checked={!!checked[p.id]}
+            checked={checked[p.id]}
             onToggle={() => setChecked((c) => ({ ...c, [p.id]: !c[p.id] }))}
           />
         ))}
       </View>
 
-      <Button label="Turn on notifications" fullWidth size="lg" onPress={finish} style={{ marginTop: 8 }} />
+      <Button
+        label="Turn on notifications"
+        fullWidth
+        size="lg"
+        onPress={() => finish(checked)}
+        style={{ marginTop: 8 }}
+      />
       <View style={{ alignItems: 'center', marginTop: 12 }}>
-        <Button label="Maybe later" variant="plain" onPress={finish} />
+        <Button label="Maybe later" variant="plain" onPress={() => finish(NO_NOTIFICATION_PREFS)} />
       </View>
     </Screen>
   );

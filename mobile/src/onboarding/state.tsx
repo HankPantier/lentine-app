@@ -7,6 +7,7 @@ import {
   useReducer,
   useState,
 } from 'react';
+import type { NotificationPrefs } from '@/lib/notification-prefs';
 import { QUESTIONS } from '@/quiz/questions';
 import type { Answer, DoshaKey, Tally } from '@/quiz/types';
 
@@ -45,6 +46,8 @@ export interface OnboardingState {
   completed: boolean;
   /** Epoch ms a "take the dosha quiz" home nudge was last dismissed; null = never. */
   quizNudgeDismissedAt: number | null;
+  /** Notification category preferences; null until the member sets them (onboarding or account). */
+  notificationPrefs: NotificationPrefs | null;
 }
 
 const STORAGE_KEY = 'la_onb_state_v1';
@@ -71,6 +74,7 @@ function initialState(): OnboardingState {
     quizDone: false,
     completed: false,
     quizNudgeDismissedAt: null,
+    notificationPrefs: null,
   };
 }
 

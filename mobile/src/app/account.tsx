@@ -3,6 +3,11 @@ import { type ReactNode, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Button, Eyebrow, Field, Heading, Screen, Text } from '@/components';
 import { formatLongDate } from '@/lib/format';
+import {
+  DEFAULT_NOTIFICATION_PREFS,
+  type NotificationPrefs,
+} from '@/lib/notification-prefs';
+import { persistNotificationPrefs } from '@/lib/profile';
 import { TIER_NAME } from '@/onboarding/pricing';
 import { useOnboarding } from '@/onboarding/state';
 import { supabase } from '@/lib/supabase';
@@ -46,6 +51,12 @@ export default function AccountRoute() {
   const [savingEmail, setSavingEmail] = useState(false);
   const [emailMsg, setEmailMsg] = useState<string | null>(null);
   const [emailErr, setEmailErr] = useState<string | null>(null);
+
+  const [prefs, setPrefs] = useState<NotificationPrefs>(
+    state.notificationPrefs ?? DEFAULT_NOTIFICATION_PREFS,
+  );
+  const [savingPrefs, setSavingPrefs] = useState(false);
+  const [prefsMsg, setPrefsMsg] = useState<string | null>(null);
 
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
@@ -95,6 +106,18 @@ export default function AccountRoute() {
       return;
     }
     setEmailMsg('Check your new inbox to confirm the change.');
+  };
+
+  const savePrefs = async (next: NotificationPrefs) => {
+    setPrefs(next);
+    update({ notificationPrefs: next });
+    setPrefsMsg(null);
+    if (state.userId) {
+      setSavingPrefs(true);
+      const { error } = await persistNotificationPrefs(state.userId, next);
+      setSavingPrefs(false);
+      setPrefsMsg(error ? `Couldn’t save: ${error}` : 'Saved.');
+    }
   };
 
   const savePassword = async () => {
@@ -271,6 +294,51 @@ export default function AccountRoute() {
             {emailMsg}
           </Text>
         ) : null}
+      </Section>
+
+      {/* Notifications */}
+      <Section title="Notifications">
+        <Card>
+          {(
+            [
+              { id: 'rituals', label: 'Daily rituals' },
+              { id: 'recipes', label: 'New recipes' },
+              { id: 'btf', label: 'Back to Forward' },
+            ] as const
+          ).map((p) => (
+            <Pressable
+              key={p.id}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: prefs[p.id] }}
+              accessibilityLabel={p.label}
+              disabled={savingPrefs}
+              onPress={() => savePrefs({ ...prefs, [p.id]: !prefs[p.id] })}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 }}
+            >
+              <View
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderWidth: 2,
+                  borderColor: prefs[p.id] ? colors.blueLight : colors.gray,
+                  backgroundColor: prefs[p.id] ? colors.blueLight : 'transparent',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {prefs[p.id] ? <Text style={{ color: colors.blue, fontSize: 13 }}>✓</Text> : null}
+              </View>
+              <Text weight="semibold" style={{ fontSize: 15, color: colors.blue }}>
+                {p.label}
+              </Text>
+            </Pressable>
+          ))}
+          {prefsMsg ? (
+            <Text italic style={{ color: fg.secondary, fontSize: 12, marginTop: 8 }}>
+              {prefsMsg}
+            </Text>
+          ) : null}
+        </Card>
       </Section>
 
       {/* Security */}
