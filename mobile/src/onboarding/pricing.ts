@@ -29,3 +29,6 @@ export function totalDue(tier: Tier, interval: Interval): number {
 export function money(n: number): string {
   return Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`;
 }
+
+/** The public website — membership purchase lives there until in-app Stripe billing ships. */
+export const SITE_URL = 'https://lentinealexis.com';

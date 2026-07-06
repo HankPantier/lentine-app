@@ -17,7 +17,7 @@ export default function QuizIntroRoute() {
   // "Skip for now" advances past the quiz (and the result screen, which needs a dosha) into
   // the rest of onboarding. The dosha stays unset until they take it later.
   const skip = () => {
-    router.push(state.mode === 'migrating' ? '/tier-confirm' : '/tier');
+    router.push(state.mode === 'migrating' ? '/tier-confirm' : '/membership');
   };
 
   return (

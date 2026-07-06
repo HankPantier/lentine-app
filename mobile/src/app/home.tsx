@@ -315,7 +315,28 @@ export default function HomeRoute() {
               </Text>
             </>
           ) : (
-            <Text style={{ color: fg.onDarkSecondary, fontSize: 14 }}>No active subscription.</Text>
+            <>
+              <Text style={{ color: fg.onDarkSecondary, fontSize: 14 }}>No active subscription.</Text>
+              {!state.userId ? (
+                <Button
+                  label="Already a member? Sign in"
+                  variant="ghostLight"
+                  size="sm"
+                  onPress={() => {
+                    update({ mode: 'migrating' });
+                    router.push('/signup');
+                  }}
+                  style={{ marginTop: 12 }}
+                />
+              ) : null}
+              <Button
+                label="Explore membership"
+                variant="ghostLight"
+                size="sm"
+                onPress={() => router.push('/membership')}
+                style={{ marginTop: state.userId ? 12 : 8 }}
+              />
+            </>
           )}
         </View>
 

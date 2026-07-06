@@ -1,12 +1,14 @@
 import type { Mode } from './state';
 
 /**
- * Progress steps per flow. The new-user flow collects profile + tier/billing/payment;
- * the returning-member ("migrating") flow signs in and confirms an existing subscription,
- * skipping those steps. `home` is the post-onboarding destination, not a progress step.
+ * Progress steps per flow. The new-user flow collects a profile and presents membership
+ * (in-app purchase arrives with Stripe — until then the membership step is informational, and
+ * the old tier/billing/payment screens are gone: the mock payment form must not be reachable
+ * by real users). The returning-member ("migrating") flow signs in and confirms an existing
+ * subscription. `home` is the post-onboarding destination, not a progress step.
  */
 const FLOW_STEPS = {
-  new: ['signup', 'profile', 'quiz_intro', 'quiz', 'result', 'tier', 'billing', 'payment', 'notifications'],
+  new: ['signup', 'profile', 'quiz_intro', 'quiz', 'result', 'membership', 'notifications'],
   migrating: ['signin', 'quiz_intro', 'quiz', 'result', 'tier_confirm', 'notifications'],
 } as const;
 

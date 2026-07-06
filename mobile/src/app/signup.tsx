@@ -24,6 +24,11 @@ export default function SignupRoute() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Email-confirmation limbo: the account exists but there's no session until the emailed
+  // link is clicked. These drive the resend/continue affordances.
+  const [awaitingConfirm, setAwaitingConfirm] = useState(false);
+  const [resendBusy, setResendBusy] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(false);
 
   // Returning member: real Supabase sign-in, then pull their subscription for tier-confirm.
   async function signIn() {
@@ -52,13 +57,22 @@ export default function SignupRoute() {
       ...(notificationPrefs ? { notificationPrefs } : {}),
     });
     // Restore their Dosha from Supabase (or back-fill it) so it survives across devices.
-    await syncDoshaOnAuth(data.user.id, state, update);
+    const dosha = await syncDoshaOnAuth(data.user.id, state, update);
     setBusy(false);
+    // A member with their subscription and dosha in place has nothing to set up — straight
+    // to the app. Re-running the quiz-intro/tier-confirm/notifications interstitials on every
+    // sign-in was pure friction (and the notifications step could clobber saved prefs).
+    if (subscription && dosha) {
+      update({ completed: true, quizDone: true });
+      router.replace('/home');
+      return;
+    }
     router.push('/quiz-intro');
   }
 
-  // New user: create the auth account. The DB trigger creates their profile row. With
-  // "Confirm email" disabled (staging) signUp returns a session immediately.
+  // New user: create the auth account. The DB trigger creates their profile row. When email
+  // confirmation is ON there's no session yet — offer resend + a "continue" that signs in
+  // once they've clicked the link (previously this was a dead end).
   async function signUp() {
     setBusy(true);
     setError(null);
@@ -73,13 +87,51 @@ export default function SignupRoute() {
       return;
     }
     if (!data.session) {
-      // Email confirmation is on — no session yet. Can't continue the gated flow.
-      setNotice('Account created. Check your email to confirm, then sign in.');
+      setAwaitingConfirm(true);
+      setNotice('Account created! Check your inbox and click the confirmation link.');
       setBusy(false);
       return;
     }
     update({ userId: data.user?.id ?? null });
     setBusy(false);
+    router.push('/profile');
+  }
+
+  // Re-send the confirmation email (short cooldown so the button can't be hammered).
+  async function resendConfirmation() {
+    setResendBusy(true);
+    setError(null);
+    const { error: resendErr } = await supabase.auth.resend({
+      type: 'signup',
+      email: state.email.trim(),
+    });
+    setResendBusy(false);
+    if (resendErr) {
+      setError(resendErr.message);
+      return;
+    }
+    setNotice('Confirmation email re-sent — check your inbox (and spam folder).');
+    setResendCooldown(true);
+    setTimeout(() => setResendCooldown(false), 30_000);
+  }
+
+  // After the user clicks the emailed link, their credentials sign in normally — continue
+  // the flow exactly where signUp with a session would have.
+  async function continueAfterConfirm() {
+    setBusy(true);
+    setError(null);
+    const { data, error: authErr } = await supabase.auth.signInWithPassword({
+      email: state.email.trim(),
+      password: state.password,
+    });
+    setBusy(false);
+    if (authErr || !data.user) {
+      const msg = authErr?.message ?? 'Could not sign in.';
+      setError(/not confirmed/i.test(msg) ? 'Not confirmed yet — give the emailed link a minute, then try again.' : msg);
+      return;
+    }
+    clearContentCache();
+    update({ userId: data.user.id });
     router.push('/profile');
   }
 
@@ -148,19 +200,42 @@ export default function SignupRoute() {
         error={error ?? undefined}
       />
 
-      <Button
-        label={primaryLabel}
-        fullWidth
-        size="lg"
-        disabled={!valid || busy}
-        onPress={migrating ? signIn : signUp}
-        style={{ marginTop: 12 }}
-      />
+      {!awaitingConfirm ? (
+        <Button
+          label={primaryLabel}
+          fullWidth
+          size="lg"
+          disabled={!valid || busy}
+          onPress={migrating ? signIn : signUp}
+          style={{ marginTop: 12 }}
+        />
+      ) : null}
 
       {notice ? (
-        <Text italic style={{ color: fg.secondary, fontSize: 13, marginTop: 16, lineHeight: 20 }}>
-          {notice}
-        </Text>
+        <>
+          <Text italic style={{ color: fg.secondary, fontSize: 13, marginTop: 16, lineHeight: 20 }}>
+            {notice}
+          </Text>
+          {awaitingConfirm ? (
+            <>
+              <Button
+                label={busy ? 'Checking…' : 'I’ve confirmed — continue'}
+                fullWidth
+                disabled={busy || resendBusy}
+                onPress={continueAfterConfirm}
+                style={{ marginTop: 16 }}
+              />
+              <Button
+                label={resendBusy ? 'Sending…' : resendCooldown ? 'Email sent' : 'Resend email'}
+                variant="outline"
+                size="sm"
+                disabled={busy || resendBusy || resendCooldown}
+                onPress={resendConfirmation}
+                style={{ marginTop: 10 }}
+              />
+            </>
+          ) : null}
+        </>
       ) : migrating ? (
         <Pressable
           accessibilityRole="button"

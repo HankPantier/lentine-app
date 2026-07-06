@@ -161,9 +161,11 @@ test('a non-member sees both paid items locked but the free post open', async ({
 
   await expect(page.getByText('Members', { exact: true })).toHaveCount(2);
 
-  // The paid post shows the members-only state (no body), with the website fallback CTA.
+  // The paid post shows the members-only state (no body), with the membership paths
+  // (sign-in rescue for the signed-out, in-app membership for everyone).
   await page.getByRole('button', { name: POST.title }).click();
   await expect(page.getByText('Members only')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Open on the website' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Already a member? Sign in' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Explore membership' })).toBeVisible();
   await expect(page.getByText('Strength is a summer practice', { exact: false })).toHaveCount(0);
 });

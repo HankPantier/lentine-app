@@ -1,5 +1,4 @@
 import { Image } from 'expo-image';
-import * as Linking from 'expo-linking';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, useWindowDimensions, View } from 'react-native';
@@ -12,8 +11,14 @@ import { formatLongDate } from '@/lib/format';
 import { useOnboarding } from '@/onboarding/state';
 import { colors, fg, fonts } from '@/theme/tokens';
 
-/** The navy members-only panel shown in place of a gated body. */
+/**
+ * The navy members-only panel shown in place of a gated body. Signed-out members get the
+ * sign-in rescue (the old single CTA opened the same article on the website — where they hit
+ * the same wall); everyone gets a path to explore membership in-app.
+ */
 function MembersOnlyPanel({ item }: { item: Article }) {
+  const router = useRouter();
+  const { state, update } = useOnboarding();
   return (
     <View style={{ backgroundColor: colors.blue, padding: 18, marginTop: 20 }}>
       <Eyebrow light color={colors.blueLight} style={{ marginBottom: 6 }}>
@@ -22,12 +27,24 @@ function MembersOnlyPanel({ item }: { item: Article }) {
       <Text style={{ color: colors.white, fontSize: 15, lineHeight: 23 }}>
         {`Your membership unlocks the full ${item.type === 'recipe' ? 'recipe' : 'article'}. Active members see it here automatically.`}
       </Text>
+      {!state.userId ? (
+        <Button
+          label="Already a member? Sign in"
+          variant="ghostLight"
+          size="sm"
+          onPress={() => {
+            update({ mode: 'migrating' });
+            router.push('/signup');
+          }}
+          style={{ marginTop: 14 }}
+        />
+      ) : null}
       <Button
-        label="Open on the website"
+        label="Explore membership"
         variant="ghostLight"
         size="sm"
-        onPress={() => Linking.openURL(item.link)}
-        style={{ marginTop: 14 }}
+        onPress={() => router.push('/membership')}
+        style={{ marginTop: state.userId ? 14 : 10 }}
       />
     </View>
   );

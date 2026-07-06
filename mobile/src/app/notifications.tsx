@@ -69,14 +69,20 @@ export default function NotificationsRoute() {
   const { current, total } = progress(state.mode, 'notifications');
 
   // Save the member's choice locally + to their profile (best-effort), then finish onboarding.
-  // "Turn on" persists the toggles as-is; "Maybe later" opts out of every category.
+  // "Turn on" persists the toggles as-is. "Maybe later" means "leave things as they are" —
+  // saved prefs hydrated at sign-in survive untouched (this step used to overwrite a returning
+  // member's choices with all-off); only a brand-new profile records the opt-out. Nothing is
+  // written unless it actually differs from what the profile already holds.
   const finish = (prefs: NotificationPrefs) => {
+    const unchanged =
+      state.notificationPrefs != null && JSON.stringify(prefs) === JSON.stringify(state.notificationPrefs);
     update({ completed: true, notificationPrefs: prefs });
-    if (state.userId) {
+    if (state.userId && !unchanged) {
       persistNotificationPrefs(state.userId, prefs).catch(() => {});
     }
     router.replace('/home');
   };
+  const maybeLater = () => finish(state.notificationPrefs ?? NO_NOTIFICATION_PREFS);
 
   return (
     <Screen>
@@ -112,7 +118,7 @@ export default function NotificationsRoute() {
         style={{ marginTop: 8 }}
       />
       <View style={{ alignItems: 'center', marginTop: 12 }}>
-        <Button label="Maybe later" variant="plain" onPress={() => finish(NO_NOTIFICATION_PREFS)} />
+        <Button label="Maybe later" variant="plain" onPress={maybeLater} />
       </View>
     </Screen>
   );

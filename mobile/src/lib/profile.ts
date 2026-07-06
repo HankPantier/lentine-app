@@ -119,7 +119,7 @@ export async function syncDoshaOnAuth(
   userId: string,
   local: Pick<OnboardingState, 'dosha' | 'doshaScores' | 'doshaTakenAt' | 'answers'>,
   update: (patch: Partial<OnboardingState>) => void,
-): Promise<void> {
+): Promise<OnboardingState['dosha']> {
   try {
     const server = await fetchProfileDosha(userId);
     if (server) {
@@ -130,7 +130,7 @@ export async function syncDoshaOnAuth(
         // Older rows (pre-0004) have no answers — keep whatever is already local.
         ...(server.answers ? { answers: server.answers } : {}),
       });
-      return;
+      return server.primary;
     }
     if (local.dosha && local.doshaScores) {
       const takenAt = local.doshaTakenAt ?? new Date().toISOString();
@@ -141,4 +141,6 @@ export async function syncDoshaOnAuth(
   } catch (e) {
     console.warn('[dosha] sync failed:', e);
   }
+  // The caller may route on the outcome (e.g. skip the quiz offer when a dosha exists).
+  return local.dosha ?? null;
 }

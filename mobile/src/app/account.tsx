@@ -236,7 +236,16 @@ export default function AccountRoute() {
               </Text>
             </>
           ) : (
-            <Text style={{ color: fg.secondary, fontSize: 14 }}>No active subscription.</Text>
+            <>
+              <Text style={{ color: fg.secondary, fontSize: 14 }}>No active subscription.</Text>
+              <Button
+                label="Explore membership"
+                variant="outline"
+                size="sm"
+                onPress={() => router.push('/membership')}
+                style={{ marginTop: 12 }}
+              />
+            </>
           )}
           <Text italic style={{ color: fg.tertiary, fontSize: 12, marginTop: 10, lineHeight: 18 }}>
             Plan changes and cancellation are coming soon.

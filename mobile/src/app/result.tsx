@@ -35,7 +35,7 @@ export default function ResultRoute() {
   const { tally, tie, winners } = result;
   const maxCount = Math.max(tally.vata, tally.pitta, tally.kapha, 1);
   const { current, total } = progress(state.mode, 'result');
-  const next = state.mode === 'migrating' ? '/tier-confirm' : '/tier';
+  const next = state.mode === 'migrating' ? '/tier-confirm' : '/membership';
 
   return (
     <DarkScreen>
