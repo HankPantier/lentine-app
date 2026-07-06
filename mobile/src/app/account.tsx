@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { type ReactNode, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Button, Eyebrow, Field, Heading, Screen, Text } from '@/components';
+import { clearContentCache } from '@/lib/content-cache';
 import { formatLongDate } from '@/lib/format';
 import {
   DEFAULT_NOTIFICATION_PREFS,
@@ -145,6 +146,7 @@ export default function AccountRoute() {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    clearContentCache(); // cached article bodies belong to the signed-out member
     reset();
     router.replace('/');
   };

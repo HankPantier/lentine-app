@@ -7,7 +7,7 @@ import { useOnboarding } from '@/onboarding/state';
 import { progress } from '@/onboarding/steps';
 import { DOSHA } from '@/quiz/doshas';
 import { QUESTIONS } from '@/quiz/questions';
-import { computeResult } from '@/quiz/scoring';
+import { computeResult, quizProgressPct } from '@/quiz/scoring';
 import type { DoshaKey } from '@/quiz/types';
 import { colors, fg } from '@/theme/tokens';
 
@@ -75,7 +75,7 @@ export default function QuizRoute() {
           <View
             style={{
               height: 3,
-              width: `${(current / total) * 100}%`,
+              width: `${quizProgressPct(current, total)}%`,
               backgroundColor: colors.blueLight,
             }}
           />

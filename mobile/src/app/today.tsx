@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { ArticleCard, Button, Eyebrow, Heading, Screen, Text } from '@/components';
 import { DOSHA_CONTENT, type ContentItem } from '@/content/dosha-content';
+import { setArticlePreview } from '@/lib/article-preview';
 import { type Article, fetchToday } from '@/lib/articles';
 import { canAccess, entitledTier } from '@/lib/entitlement';
 import { useOnboarding } from '@/onboarding/state';
@@ -30,17 +31,32 @@ export default function TodayRoute() {
   const { state } = useOnboarding();
   const dosha = state.dosha;
 
-  // Real dosha-matched recipes from WordPress. null = loading; [] = none/failed → fallback note.
+  // Real dosha-matched recipes from WordPress. null = loading; [] = none published yet.
+  // Failures get their own retry state so an API error never reads as "coming soon".
   const [recipes, setRecipes] = useState<Article[] | null>(null);
+  const [recipesFailed, setRecipesFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const tier = entitledTier(state.subscription);
   useEffect(() => {
     if (!dosha) return;
     let active = true;
-    fetchToday(dosha).then((r) => active && setRecipes(r));
+    fetchToday(dosha).then(
+      (r) => {
+        if (!active) return;
+        setRecipes(r);
+        setRecipesFailed(false);
+      },
+      () => active && setRecipesFailed(true),
+    );
     return () => {
       active = false;
     };
-  }, [dosha]);
+  }, [dosha, attempt]);
+  const retryRecipes = () => {
+    setRecipesFailed(false);
+    setRecipes(null);
+    setAttempt((n) => n + 1);
+  };
 
   if (!dosha) {
     return (
@@ -98,7 +114,14 @@ export default function TodayRoute() {
         {/* Real dosha-matched recipes pulled from WordPress. */}
         <View>
           <Eyebrow style={{ marginBottom: 8 }}>{`${d.name} recipes`}</Eyebrow>
-          {recipes === null ? (
+          {recipesFailed ? (
+            <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18 }}>
+              <Text style={{ color: fg.secondary, fontSize: 14, lineHeight: 21 }}>
+                Couldn&rsquo;t load recipes right now.
+              </Text>
+              <Button label="Try again" size="sm" onPress={retryRecipes} style={{ marginTop: 12 }} />
+            </View>
+          ) : recipes === null ? (
             <View style={{ paddingVertical: 20, alignItems: 'center' }}>
               <ActivityIndicator color={colors.blue} />
             </View>
@@ -125,7 +148,11 @@ export default function TodayRoute() {
                   key={a.id}
                   article={a}
                   locked={!canAccess(a, tier)}
-                  onPress={() => router.push({ pathname: '/articles/[slug]', params: { slug: a.slug } })}
+                  onPress={() => {
+                    // The reader paints instantly from this summary while the body loads.
+                    setArticlePreview(a);
+                    router.push({ pathname: '/articles/[slug]', params: { slug: a.slug } });
+                  }}
                 />
               ))}
             </View>

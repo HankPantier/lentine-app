@@ -1,7 +1,7 @@
 /// <reference types="jest" />
 import { DOSHA } from './doshas';
 import { QUESTIONS } from './questions';
-import { computeResult, tally } from './scoring';
+import { computeResult, quizProgressPct, tally } from './scoring';
 import type { Answer, DoshaKey } from './types';
 
 /** Build an answer array of the given length, filling `repeat` to set leanings. */
@@ -100,5 +100,25 @@ describe('quiz data integrity (port guard)', () => {
     expect(r.primary).toBe('vata');
     expect(r.tally.vata).toBe(12);
     expect(r.tie).toBe(false);
+  });
+});
+
+describe('quizProgressPct', () => {
+  it('shows visible progress on the first question', () => {
+    expect(quizProgressPct(0, 12)).toBeCloseTo(100 / 12);
+  });
+
+  it('fills the bar on the final question', () => {
+    expect(quizProgressPct(11, 12)).toBe(100);
+  });
+
+  it('tracks the "Question N of M" label at the midpoint', () => {
+    expect(quizProgressPct(5, 12)).toBe(50);
+  });
+
+  it('never exceeds the bar or goes negative', () => {
+    expect(quizProgressPct(20, 12)).toBe(100);
+    expect(quizProgressPct(-2, 12)).toBe(0);
+    expect(quizProgressPct(0, 0)).toBe(0);
   });
 });

@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Platform, Pressable } from 'react-native';
 import { Button, Eyebrow, Field, Heading, OnbTopBar, Screen, Text } from '@/components';
+import { clearContentCache } from '@/lib/content-cache';
 import { fetchNotificationPrefs, fetchProfileName, syncDoshaOnAuth } from '@/lib/profile';
 import { supabase } from '@/lib/supabase';
 import { fetchSubscription } from '@/lib/subscription';
@@ -37,6 +38,7 @@ export default function SignupRoute() {
       setBusy(false);
       return;
     }
+    clearContentCache(); // entitlement just changed — cached locked bodies are stale
     // Pull their subscription (tier-confirm), name (greeting), and notification prefs together.
     const [subscription, name, notificationPrefs] = await Promise.all([
       fetchSubscription(data.user.id),

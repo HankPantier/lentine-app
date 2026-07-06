@@ -5,8 +5,11 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, useWindowDimensions, View } from 'react-native';
 import RenderHtml from 'react-native-render-html';
 import { Button, Eyebrow, Heading, Screen, Text } from '@/components';
-import { type ArticleDetail, fetchArticle } from '@/lib/articles';
+import { getArticlePreview } from '@/lib/article-preview';
+import { type Article, type ArticleDetail, fetchArticle } from '@/lib/articles';
+import { canAccess, entitledTier } from '@/lib/entitlement';
 import { formatLongDate } from '@/lib/format';
+import { useOnboarding } from '@/onboarding/state';
 import { colors, fg, fonts } from '@/theme/tokens';
 
 function BackButton({ onPress }: { onPress: () => void }) {
@@ -23,16 +26,43 @@ function BackButton({ onPress }: { onPress: () => void }) {
   );
 }
 
+/** The navy members-only panel shown in place of a gated body. */
+function MembersOnlyPanel({ item }: { item: Article }) {
+  return (
+    <View style={{ backgroundColor: colors.blue, padding: 18, marginTop: 20 }}>
+      <Eyebrow light color={colors.blueLight} style={{ marginBottom: 6 }}>
+        Members only
+      </Eyebrow>
+      <Text style={{ color: colors.white, fontSize: 15, lineHeight: 23 }}>
+        {`Your membership unlocks the full ${item.type === 'recipe' ? 'recipe' : 'article'}. Active members see it here automatically.`}
+      </Text>
+      <Button
+        label="Open on the website"
+        variant="ghostLight"
+        size="sm"
+        onPress={() => Linking.openURL(item.link)}
+        style={{ marginTop: 14 }}
+      />
+    </View>
+  );
+}
+
 /**
  * In-app article view. Loads the full article from the wp-articles edge function, which
  * returns the body only to verified paid members. Members → rendered HTML; everyone else →
  * excerpt + a members-only prompt. `undefined` = loading, `null` = failed to load.
+ *
+ * The header (image/category/title/date) renders instantly from the feed's preview of the
+ * tapped card — only the body waits on the network. Cold deep links have no preview and fall
+ * back to the loading spinner.
  */
 export default function ArticleRoute() {
   const router = useRouter();
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const { width } = useWindowDimensions();
+  const { state } = useOnboarding();
   const [detail, setDetail] = useState<ArticleDetail | null | undefined>(undefined);
+  const preview = slug ? getArticlePreview(slug) : undefined;
 
   useEffect(() => {
     let active = true;
@@ -41,17 +71,6 @@ export default function ArticleRoute() {
       active = false;
     };
   }, [slug]);
-
-  if (detail === undefined) {
-    return (
-      <Screen>
-        <BackButton onPress={() => router.back()} />
-        <View style={{ paddingVertical: 48, alignItems: 'center' }}>
-          <ActivityIndicator color={colors.blue} />
-        </View>
-      </Screen>
-    );
-  }
 
   if (detail === null) {
     return (
@@ -65,15 +84,31 @@ export default function ArticleRoute() {
     );
   }
 
+  const summary: Article | undefined = detail ?? preview;
+  if (!summary) {
+    // Cold open (deep link/refresh) — nothing to paint until the fetch resolves.
+    return (
+      <Screen>
+        <BackButton onPress={() => router.back()} />
+        <View style={{ paddingVertical: 48, alignItems: 'center' }}>
+          <ActivityIndicator color={colors.blue} />
+        </View>
+      </Screen>
+    );
+  }
+
   const contentWidth = Math.max(width - 48, 240); // Screen has 24px horizontal padding
+  // While the fetch is in flight, the client's own entitlement rule predicts the outcome; the
+  // server response stays authoritative and simply confirms (or corrects) it on arrival.
+  const predictedLocked = !canAccess(summary, entitledTier(state.subscription));
 
   return (
     <Screen>
       <BackButton onPress={() => router.back()} />
 
-      {detail.image ? (
+      {summary.image ? (
         <Image
-          source={{ uri: detail.image }}
+          source={{ uri: summary.image }}
           style={{ width: '100%', height: 200, marginBottom: 18 }}
           contentFit="cover"
           transition={150}
@@ -81,38 +116,29 @@ export default function ArticleRoute() {
         />
       ) : null}
 
-      {detail.category ? <Eyebrow color={colors.blueBright}>{detail.category}</Eyebrow> : null}
+      {summary.category ? <Eyebrow color={colors.blueBright}>{summary.category}</Eyebrow> : null}
       <Heading size={28} style={{ marginTop: 8 }}>
-        {detail.title}
+        {summary.title}
       </Heading>
       <Text style={{ color: fg.tertiary, fontSize: 13, marginTop: 8, marginBottom: 16 }}>
-        {formatLongDate(detail.date)}
+        {formatLongDate(summary.date)}
       </Text>
 
-      {detail.locked || !detail.contentHtml ? (
+      {detail === undefined ? (
+        <View>
+          <Text style={{ color: fg.secondary, fontSize: 16, lineHeight: 25 }}>{summary.excerpt}</Text>
+          {predictedLocked ? (
+            <MembersOnlyPanel item={summary} />
+          ) : (
+            <View style={{ paddingVertical: 28, alignItems: 'center' }}>
+              <ActivityIndicator color={colors.blue} />
+            </View>
+          )}
+        </View>
+      ) : detail.locked || !detail.contentHtml ? (
         <View>
           <Text style={{ color: fg.secondary, fontSize: 16, lineHeight: 25 }}>{detail.excerpt}</Text>
-          <View
-            style={{
-              backgroundColor: colors.blue,
-              padding: 18,
-              marginTop: 20,
-            }}
-          >
-            <Eyebrow light color={colors.blueLight} style={{ marginBottom: 6 }}>
-              Members only
-            </Eyebrow>
-            <Text style={{ color: colors.white, fontSize: 15, lineHeight: 23 }}>
-              Your membership unlocks the full article. Active members see it here automatically.
-            </Text>
-            <Button
-              label="Open on the website"
-              variant="ghostLight"
-              size="sm"
-              onPress={() => Linking.openURL(detail.link)}
-              style={{ marginTop: 14 }}
-            />
-          </View>
+          <MembersOnlyPanel item={detail} />
         </View>
       ) : (
         <RenderHtml

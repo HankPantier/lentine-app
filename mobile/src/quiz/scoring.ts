@@ -37,3 +37,14 @@ export function computeResult(answers: Answer[]): QuizResult {
     winners,
   };
 }
+
+/**
+ * Fill fraction (0–100) for the quiz progress bar. Counts the question currently being
+ * answered — Q1 of 12 shows visible progress and the final question fills the bar — matching
+ * the "Question N of M" label rendered beside it (a `current/total` bar reads 0% on Q1 and
+ * never reaches 100%).
+ */
+export function quizProgressPct(current: number, total: number): number {
+  if (total <= 0) return 0;
+  return Math.min(100, Math.max(0, ((current + 1) / total) * 100));
+}

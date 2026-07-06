@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { ArticleCard, Button, Eyebrow, Heading, Screen, Text, Wordmark } from '@/components';
 import { DOSHA_CONTENT } from '@/content/dosha-content';
+import { setArticlePreview } from '@/lib/article-preview';
 import { type Article, fetchArticles } from '@/lib/articles';
 import { canAccess, entitledTier } from '@/lib/entitlement';
 import { formatLongDate } from '@/lib/format';
@@ -73,18 +74,31 @@ export default function HomeRoute() {
   // on every render). Millisecond precision isn't needed for a multi-day snooze window.
   const [now] = useState(() => Date.now());
 
-  // Latest WordPress articles (posts + recipes). null = still loading; [] = nothing to show.
+  // Latest WordPress articles (posts + recipes). null = still loading; [] = genuinely empty.
+  // A failed load is its own state (with a retry) — an API error must not read as "no content".
   const [articles, setArticles] = useState<Article[] | null>(null);
+  const [feedFailed, setFeedFailed] = useState(false);
+  const [feedAttempt, setFeedAttempt] = useState(0);
   const [sort, setSort] = useState<SortMode>('recent');
   useEffect(() => {
     let active = true;
-    fetchArticles(12).then((a) => {
-      if (active) setArticles(a);
-    });
+    fetchArticles(12).then(
+      (a) => {
+        if (!active) return;
+        setArticles(a);
+        setFeedFailed(false);
+      },
+      () => active && setFeedFailed(true),
+    );
     return () => {
       active = false;
     };
-  }, []);
+  }, [feedAttempt]);
+  const retryFeed = () => {
+    setFeedFailed(false);
+    setArticles(null);
+    setFeedAttempt((n) => n + 1);
+  };
 
   // The tier that currently unlocks bodies (null unless an active/trialing subscription). Drives
   // the instant lock badges; the wp-articles edge function re-verifies the same rule server-side.
@@ -201,15 +215,20 @@ export default function HomeRoute() {
         {/* Latest from Lentine — real posts + recipes pulled from WordPress */}
         <View>
           <Eyebrow style={{ marginBottom: 8 }}>Latest from Lentine</Eyebrow>
-          {sortedArticles === null ? (
+          {feedFailed ? (
+            <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18 }}>
+              <Text style={{ color: fg.secondary, fontSize: 14, lineHeight: 21 }}>
+                Couldn&rsquo;t load articles right now.
+              </Text>
+              <Button label="Try again" size="sm" onPress={retryFeed} style={{ marginTop: 12 }} />
+            </View>
+          ) : sortedArticles === null ? (
             <View style={{ paddingVertical: 24, alignItems: 'center' }}>
               <ActivityIndicator color={colors.blue} />
             </View>
           ) : sortedArticles.length === 0 ? (
             <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18 }}>
-              <Text style={{ color: fg.secondary, fontSize: 14 }}>
-                Couldn&rsquo;t load articles right now. Pull to refresh later.
-              </Text>
+              <Text style={{ color: fg.secondary, fontSize: 14 }}>Nothing published just yet — check back soon.</Text>
             </View>
           ) : (
             <>
@@ -253,7 +272,11 @@ export default function HomeRoute() {
                     key={a.id}
                     article={a}
                     locked={!canAccess(a, tier)}
-                    onPress={() => router.push({ pathname: '/articles/[slug]', params: { slug: a.slug } })}
+                    onPress={() => {
+                      // The reader paints instantly from this summary while the body loads.
+                      setArticlePreview(a);
+                      router.push({ pathname: '/articles/[slug]', params: { slug: a.slug } });
+                    }}
                   />
                 ))}
               </View>
