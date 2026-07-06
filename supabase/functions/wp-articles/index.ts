@@ -1,11 +1,14 @@
 // wp-articles — the app's content seam to WordPress.
 //
-// Two actions over POST:
+// Three actions over POST:
 //   { action: 'list', perPage? }      → public: recent POSTS + RECIPES, merged, newest-first.
 //                                        Each item carries `type` ('post'|'recipe') and
 //                                        `visibility` ('free'|'paid') so the app draws lock badges.
+//   { action: 'today', dosha, perPage? } → public: recipes matched to the member's dosha.
 //   { action: 'article', slug }       → tier-gated: the full body ONLY when the caller's Supabase
 //                                        subscription TIER permits it (see canUnlock).
+//
+// list/today responses are cached in warm-isolate memory for 60s; article never is.
 //
 // Why this shape: the live WordPress site gates bodies server-side, so a full body needs an
 // authenticated WP request. Auth + entitlement live in Supabase, so we keep the WordPress
@@ -48,16 +51,59 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-/** Strip tags + collapse whitespace for a plain-text card excerpt. */
+/**
+ * Warm-isolate response cache for the anonymous list/today actions (module state survives
+ * across invocations while the isolate is warm). Each one costs 24 `_embed` WP fetches against
+ * an uncached origin — with a 60s TTL repeat opens skip WordPress entirely. NEVER cache
+ * `article`: its response depends on the caller's entitlement.
+ */
+const RESPONSE_CACHE_TTL_MS = 60_000;
+const responseCache = new Map<string, { at: number; body: string }>();
+
+function cachedResponse(key: string): Response | null {
+  const hit = responseCache.get(key);
+  if (!hit || Date.now() - hit.at >= RESPONSE_CACHE_TTL_MS) return null;
+  return new Response(hit.body, { status: 200, headers: { ...CORS, 'Content-Type': 'application/json' } });
+}
+
+function cacheAndRespond(key: string, payload: unknown): Response {
+  const body = JSON.stringify(payload);
+  responseCache.set(key, { at: Date.now(), body });
+  return new Response(body, { status: 200, headers: { ...CORS, 'Content-Type': 'application/json' } });
+}
+
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: '&',
+  nbsp: ' ',
+  hellip: '…',
+  ndash: '–',
+  mdash: '—',
+  lsquo: '‘',
+  rsquo: '’',
+  ldquo: '“',
+  rdquo: '”',
+  quot: '"',
+};
+
+/** Strip tags, decode entities, collapse whitespace — plain text for cards. */
 function stripHtml(html: string): string {
   return html
     .replace(/<[^>]*>/g, '')
-    .replace(/&hellip;/g, '…')
-    .replace(/&#8217;/g, '’')
-    .replace(/&#8230;/g, '…')
-    .replace(/&amp;/g, '&')
-    .replace(/&nbsp;/g, ' ')
+    .replace(/&#(\d+);/g, (_, n: string) => String.fromCodePoint(Number(n)))
+    .replace(/&([a-z]+);/gi, (m: string, name: string) => NAMED_ENTITIES[name.toLowerCase()] ?? m)
     .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * A card-ready excerpt. WooCommerce Memberships appends its purchase pitch ("To access this
+ * content, you must purchase Recipe Club Subscription – Monthly, …") to every restricted
+ * excerpt — pure noise on a card (the lock badge already communicates gating) and it shows
+ * even to entitled members. Cut it.
+ */
+function cardExcerpt(html: string): string {
+  return stripHtml(html)
+    .replace(/\s*To access this (content|post|recipe)\b.*$/i, '')
     .trim();
 }
 
@@ -82,6 +128,23 @@ function readCategory(post: any, type: ContentType): string | null {
   return (term?.name as string | undefined) ?? null;
 }
 
+/**
+ * A bounded image for a ~180-200pt card/hero — the originals are 2560px multi-MB "-scaled"
+ * uploads (the feed shipped 6.4 MB of images for 12 cards). `_embed` already includes the
+ * generated sizes; fall back to the original only when WP made no intermediate sizes (small
+ * uploads, SVGs, disabled thumbnails).
+ */
+// deno-lint-ignore no-explicit-any
+function bestImage(media: any): string | null {
+  const sizes = media?.media_details?.sizes;
+  return (
+    (sizes?.medium_large?.source_url as string | undefined) ?? // 768w — plenty at 2-3x DPR
+    (sizes?.large?.source_url as string | undefined) ?? // 1024w
+    (media?.source_url as string | undefined) ??
+    null
+  );
+}
+
 /** Normalize a WP REST post/recipe (fetched with _embed) into the app's Article shape. */
 // deno-lint-ignore no-explicit-any
 function toArticle(post: any, type: ContentType) {
@@ -92,8 +155,8 @@ function toArticle(post: any, type: ContentType) {
     type,
     visibility: readVisibility(post),
     title: stripHtml(post?.title?.rendered ?? ''),
-    excerpt: stripHtml(post?.excerpt?.rendered ?? ''),
-    image: (media?.source_url as string | undefined) ?? null,
+    excerpt: cardExcerpt(post?.excerpt?.rendered ?? ''),
+    image: bestImage(media),
     category: readCategory(post, type),
     date: post.date as string,
     link: post.link as string,
@@ -152,10 +215,16 @@ async function fetchType(type: ContentType, perPage: number) {
   return Array.isArray(items) ? items.map((p) => toArticle(p, type)) : [];
 }
 
-/** Find a single item by slug across both post types; returns the raw WP object + its type. */
+/**
+ * Find a single item by slug across both post types; returns the raw WP object + its type.
+ * The posts fetch is AUTHENTICATED so `content.rendered` arrives complete in this one request
+ * (Memberships truncates it for anonymous callers) — the gate is unaffected because the body
+ * is only ever *returned* after canUnlock passes. This used to be a second, duplicate WP
+ * round-trip per post open.
+ */
 async function findBySlug(slug: string): Promise<{ post: unknown; type: ContentType } | null> {
   const [postRes, recipeRes] = await Promise.all([
-    fetch(wpUrl(`posts?_embed=1&slug=${encodeURIComponent(slug)}`)),
+    fetch(wpUrl(`posts?_embed=1&slug=${encodeURIComponent(slug)}`), { headers: basicAuthHeaders() }),
     fetch(wpUrl(`recipe?_embed=1&slug=${encodeURIComponent(slug)}`)),
   ]);
   const postArr = postRes.ok ? await postRes.json() : [];
@@ -165,23 +234,14 @@ async function findBySlug(slug: string): Promise<{ post: unknown; type: ContentT
   return null;
 }
 
-/** The full, assembled body HTML for an unlocked item, fetched with the WP credential. */
-async function fetchBody(slug: string, type: ContentType): Promise<string> {
-  if (type === 'recipe') {
-    // Recipes have no `content` — the body is assembled by the auth-only la/v1 route.
-    const res = await fetch(`${WP_BASE_URL}/wp-json/la/v1/recipe/${encodeURIComponent(slug)}`, {
-      headers: basicAuthHeaders(),
-    });
-    if (!res.ok) return '';
-    const data = await res.json();
-    return (data?.recipe_body as string | undefined) ?? '';
-  }
-  // Posts: re-fetch authenticated so any server-side content filter returns the full body.
-  const res = await fetch(wpUrl(`posts?slug=${encodeURIComponent(slug)}`), { headers: basicAuthHeaders() });
+/** The assembled body of an unlocked recipe (recipes have no `content` — it lives in ACF). */
+async function fetchRecipeBody(slug: string): Promise<string> {
+  const res = await fetch(`${WP_BASE_URL}/wp-json/la/v1/recipe/${encodeURIComponent(slug)}`, {
+    headers: basicAuthHeaders(),
+  });
   if (!res.ok) return '';
-  const posts = await res.json();
-  const post = Array.isArray(posts) ? posts[0] : null;
-  return (post?.content?.rendered as string | undefined) ?? '';
+  const data = await res.json();
+  return (data?.recipe_body as string | undefined) ?? '';
 }
 
 Deno.serve(async (req) => {
@@ -199,11 +259,14 @@ Deno.serve(async (req) => {
   // --- list (public): merged posts + recipes, newest-first ---
   if (body.action === 'list') {
     const perPage = Math.min(Math.max(body.perPage ?? DEFAULT_PER_PAGE, 1), 30);
+    const cacheKey = `list:${perPage}`;
+    const cached = cachedResponse(cacheKey);
+    if (cached) return cached;
     const [posts, recipes] = await Promise.all([fetchType('post', perPage), fetchType('recipe', perPage)]);
     const articles = [...posts, ...recipes]
       .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
       .slice(0, perPage);
-    return json({ articles });
+    return cacheAndRespond(cacheKey, { articles });
   }
 
   // --- today (public): recipes matched to the member's dosha, newest-first ---
@@ -215,6 +278,9 @@ Deno.serve(async (req) => {
       return json({ error: 'invalid dosha' }, 400);
     }
     const perPage = Math.min(Math.max(body.perPage ?? 6, 1), 12);
+    const cacheKey = `today:${dosha}:${perPage}`;
+    const cached = cachedResponse(cacheKey);
+    if (cached) return cached;
     const res = await fetch(wpUrl('recipe?_embed=1&per_page=24&orderby=date&order=desc'));
     if (!res.ok) return json({ articles: [] });
     const items = await res.json();
@@ -222,21 +288,29 @@ Deno.serve(async (req) => {
       .filter((p) => readDoshas(p).includes(dosha))
       .slice(0, perPage)
       .map((p) => toArticle(p, 'recipe'));
-    return json({ articles });
+    return cacheAndRespond(cacheKey, { articles });
   }
 
   // --- article (tier-gated) ---
   if (body.action === 'article') {
     if (!body.slug) return json({ error: 'slug required' }, 400);
-    const found = await findBySlug(body.slug);
+    // Slug lookup and tier resolution are independent — run them together. (This was a
+    // 4-stage serial waterfall: find → getUser → subscription → a duplicate body fetch.)
+    const [found, tier] = await Promise.all([
+      findBySlug(body.slug),
+      resolveTier(req.headers.get('Authorization')),
+    ]);
     if (!found) return json({ error: 'not found' }, 404);
 
     const summary = toArticle(found.post, found.type);
-    const tier = await resolveTier(req.headers.get('Authorization'));
     if (!canUnlock(found.type, summary.visibility, tier)) {
       return json({ article: { ...summary, locked: true, contentHtml: null } });
     }
-    const contentHtml = await fetchBody(summary.slug, found.type);
+    const contentHtml =
+      found.type === 'recipe'
+        ? await fetchRecipeBody(summary.slug)
+        : // deno-lint-ignore no-explicit-any
+          (((found.post as any)?.content?.rendered as string | undefined) ?? '');
     return json({ article: { ...summary, locked: false, contentHtml } });
   }
 
