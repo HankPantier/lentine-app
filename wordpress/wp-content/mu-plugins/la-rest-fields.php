@@ -33,10 +33,38 @@ function la_acf_labels( $field_name, $post_id ) {
 	return $labels;
 }
 
-/** The `visibility` ACF flag, normalized to the app's two values; default `paid` (fail safe). */
+/**
+ * The item's visibility, normalized to the app's two values; default `paid` (fail safe).
+ *
+ * Recipes carry a curated ACF `visibility` flag, so the raw read is trustworthy. Posts do
+ * NOT — the field was never set on them (it reads as its 'free' default) while the site
+ * actually restricts them via WooCommerce Memberships rules. Trusting the flag alone leaked
+ * members-only post bodies (incl. live-session links) to anonymous app users. So for posts,
+ * mirror the real gate: Memberships' own restriction check when the plugin is active, with a
+ * fail-closed fallback (uncurated flag + members-area category => paid) when it isn't.
+ */
 function la_visibility( $post_id ) {
-	$v = function_exists( 'get_field' ) ? get_field( 'visibility', $post_id ) : '';
-	return ( $v === 'free' ) ? 'free' : 'paid';
+	$acf = function_exists( 'get_field' ) ? get_field( 'visibility', $post_id ) : '';
+
+	if ( get_post_type( $post_id ) === 'post' ) {
+		if ( function_exists( 'wc_memberships_is_post_content_restricted' ) ) {
+			// Memberships is the live gate for posts — mirror it exactly (honoring the
+			// per-post "force public" editorial override when the helper exists).
+			$restricted = wc_memberships_is_post_content_restricted( $post_id )
+				&& ! ( function_exists( 'wc_memberships_is_post_public' ) && wc_memberships_is_post_public( $post_id ) );
+			if ( $restricted ) {
+				return 'paid';
+			}
+			return ( $acf === 'paid' ) ? 'paid' : 'free';
+		}
+		// Memberships unavailable: a never-saved flag on a members-area post fails closed.
+		$stored = get_post_meta( $post_id, 'visibility', true );
+		if ( '' === $stored && has_category( 'back-forward', $post_id ) ) {
+			return 'paid';
+		}
+	}
+
+	return ( $acf === 'free' ) ? 'free' : 'paid';
 }
 
 add_action(
