@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { type ReactNode, useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { Button, Eyebrow, Field, Heading, Screen, Text } from '@/components';
+import { AppHeader, Button, Eyebrow, Field, Heading, Screen, Text } from '@/components';
 import { clearContentCache } from '@/lib/content-cache';
 import { formatLongDate } from '@/lib/format';
 import {
@@ -153,15 +153,7 @@ export default function AccountRoute() {
 
   return (
     <Screen>
-      <Pressable
-        onPress={() => router.back()}
-        hitSlop={12}
-        accessibilityRole="button"
-        accessibilityLabel="Go back"
-        style={{ marginBottom: 20 }}
-      >
-        <Text style={{ fontSize: 26, lineHeight: 26, color: colors.blue }}>←</Text>
-      </Pressable>
+      <AppHeader onBack={() => router.back()} />
 
       <Eyebrow>Your account</Eyebrow>
       <Heading style={{ marginTop: 8 }}>

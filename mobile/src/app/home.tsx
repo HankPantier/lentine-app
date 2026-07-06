@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
-import { ArticleCard, Button, Eyebrow, Heading, Screen, Text, Wordmark } from '@/components';
+import { AppHeader, ArticleCard, Button, Eyebrow, Heading, Screen, Text } from '@/components';
 import { DOSHA_CONTENT } from '@/content/dosha-content';
 import { setArticlePreview } from '@/lib/article-preview';
 import { type Article, fetchArticles } from '@/lib/articles';
@@ -113,28 +113,32 @@ export default function HomeRoute() {
     <Screen padding={0}>
       {/* Hero */}
       <View style={{ backgroundColor: colors.blue, paddingHorizontal: 24, paddingTop: 28, paddingBottom: 32 }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Wordmark width={130} />
-          <Pressable
-            onPress={() => router.push('/account')}
-            accessibilityRole="button"
-            accessibilityLabel="Account"
-            hitSlop={10}
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 17,
-              backgroundColor: d.accent,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Text weight="bold" style={{ color: colors.blue, fontSize: 14 }}>
-              {first.charAt(0).toUpperCase()}
-            </Text>
-          </Pressable>
-        </View>
-        <Eyebrow light color={colors.blueLight} style={{ marginTop: 24 }}>
+        <AppHeader
+          logo
+          dark
+          right={
+            <Pressable
+              onPress={() => router.push('/account')}
+              accessibilityRole="button"
+              accessibilityLabel="Account"
+              hitSlop={10}
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 17,
+                backgroundColor: d.accent,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Text weight="bold" style={{ color: colors.blue, fontSize: 14 }}>
+                {first.charAt(0).toUpperCase()}
+              </Text>
+            </Pressable>
+          }
+        />
+        {/* AppHeader owns 20px of the gap; 4 more keeps the hero rhythm at the original 24. */}
+        <Eyebrow light color={colors.blueLight} style={{ marginTop: 4 }}>
           {`${greeting()}, ${first}`}
         </Eyebrow>
         <Heading dark size={30} style={{ marginTop: 8 }}>

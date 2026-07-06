@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
-import { ArticleCard, Button, Eyebrow, Heading, Screen, Text } from '@/components';
+import { ActivityIndicator, View } from 'react-native';
+import { AppHeader, ArticleCard, Button, Eyebrow, Heading, Screen, Text } from '@/components';
 import { DOSHA_CONTENT, type ContentItem } from '@/content/dosha-content';
 import { setArticlePreview } from '@/lib/article-preview';
 import { type Article, fetchToday } from '@/lib/articles';
@@ -61,7 +61,7 @@ export default function TodayRoute() {
   if (!dosha) {
     return (
       <Screen>
-        <BackButton onBack={() => router.back()} />
+        <AppHeader onBack={() => router.back()} />
         <Eyebrow>For you</Eyebrow>
         <Heading style={{ marginTop: 8 }}>
           Find your{' '}
@@ -85,8 +85,8 @@ export default function TodayRoute() {
     <Screen padding={0}>
       {/* Hero */}
       <View style={{ backgroundColor: colors.blue, paddingHorizontal: 24, paddingTop: 28, paddingBottom: 32 }}>
-        <BackButton onBack={() => router.back()} light />
-        <Eyebrow light color={colors.blueLight} style={{ marginTop: 20 }}>
+        <AppHeader onBack={() => router.back()} dark />
+        <Eyebrow light color={colors.blueLight}>
           {`For your ${d.name}`}
         </Eyebrow>
         <Heading dark size={30} style={{ marginTop: 8 }}>
@@ -160,19 +160,5 @@ export default function TodayRoute() {
         </View>
       </View>
     </Screen>
-  );
-}
-
-function BackButton({ onBack, light }: { onBack: () => void; light?: boolean }) {
-  return (
-    <Pressable
-      onPress={onBack}
-      hitSlop={12}
-      accessibilityRole="button"
-      accessibilityLabel="Go back"
-      style={{ alignSelf: 'flex-start' }}
-    >
-      <Text style={{ fontSize: 26, lineHeight: 26, color: light ? colors.white : colors.blue }}>←</Text>
-    </Pressable>
   );
 }

@@ -8,9 +8,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/tokens';
+import { BackGlyph } from './AppHeader';
 import { Eyebrow } from './Eyebrow';
 import { ProgressDots } from './ProgressDots';
-import { Text } from './Text';
 
 interface ScreenProps {
   children: ReactNode;
@@ -58,9 +58,8 @@ interface TopBarProps {
   onSkip?: () => void;
 }
 
-/** Onboarding top bar: back affordance, centered progress dots, optional skip. */
+/** Onboarding top bar: back affordance (the shared BackGlyph), centered progress dots, optional skip. */
 export function OnbTopBar({ onBack, current, total, dark = false, onSkip }: TopBarProps) {
-  const tint = dark ? colors.white : colors.blue;
   return (
     <View
       style={{
@@ -70,13 +69,7 @@ export function OnbTopBar({ onBack, current, total, dark = false, onSkip }: TopB
         marginBottom: 28,
       }}
     >
-      <View style={{ width: 44 }}>
-        {onBack ? (
-          <Pressable onPress={onBack} hitSlop={12} accessibilityRole="button" accessibilityLabel="Go back">
-            <Text style={{ fontSize: 26, lineHeight: 26, color: tint }}>←</Text>
-          </Pressable>
-        ) : null}
-      </View>
+      <View style={{ width: 44 }}>{onBack ? <BackGlyph onPress={onBack} dark={dark} /> : null}</View>
       <ProgressDots current={current} total={total} dark={dark} />
       <View style={{ width: 44, alignItems: 'flex-end' }}>
         {onSkip ? (

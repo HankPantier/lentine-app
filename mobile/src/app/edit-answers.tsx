@@ -1,14 +1,14 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
-import { Button, Eyebrow, Heading, OptionCard, Screen, Text } from '@/components';
+import { View } from 'react-native';
+import { AppHeader, Button, Eyebrow, Heading, OptionCard, Screen, Text } from '@/components';
 import { persistDosha } from '@/lib/profile';
 import { useOnboarding } from '@/onboarding/state';
 import { DOSHA } from '@/quiz/doshas';
 import { QUESTIONS } from '@/quiz/questions';
 import { computeResult } from '@/quiz/scoring';
 import type { Answer, DoshaKey } from '@/quiz/types';
-import { colors, fg } from '@/theme/tokens';
+import { fg } from '@/theme/tokens';
 
 /**
  * Edit the saved dosha answers. Seeded from a local copy of state.answers so backing out
@@ -54,15 +54,7 @@ export default function EditAnswersRoute() {
 
   return (
     <Screen>
-      <Pressable
-        onPress={() => router.back()}
-        hitSlop={12}
-        accessibilityRole="button"
-        accessibilityLabel="Go back"
-        style={{ marginBottom: 20, alignSelf: 'flex-start' }}
-      >
-        <Text style={{ fontSize: 26, lineHeight: 26, color: colors.blue }}>←</Text>
-      </Pressable>
+      <AppHeader onBack={() => router.back()} />
 
       <Eyebrow>Your dosha</Eyebrow>
       <Heading style={{ marginTop: 8 }}>

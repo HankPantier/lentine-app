@@ -129,3 +129,19 @@ test('notification toggles persist to the profile row', async ({ page }) => {
 
   expect(patched).toMatchObject({ notification_prefs: { rituals: false, recipes: true, btf: true } });
 });
+
+test('the back button is not a full-width tap target (M3 header regression)', async ({ page }) => {
+  await seed(page, completedState());
+  await page.goto('/account');
+  await expect(page.getByText('Hello,')).toBeVisible();
+
+  const back = page.getByRole('button', { name: 'Go back' });
+  const box = await back.boundingBox();
+  expect(box).not.toBeNull();
+  // The arrow glyph (alignSelf flex-start) should hug its content, not stretch across the row.
+  expect(box!.width).toBeLessThan(80);
+
+  // Clicking well to the right of the arrow, at the same height, must NOT navigate back.
+  await page.mouse.click(box!.x + 250, box!.y + box!.height / 2);
+  await expect(page).toHaveURL(/\/account/);
+});

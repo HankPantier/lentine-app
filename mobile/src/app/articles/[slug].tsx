@@ -2,29 +2,15 @@ import { Image } from 'expo-image';
 import * as Linking from 'expo-linking';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, useWindowDimensions, View } from 'react-native';
 import RenderHtml from 'react-native-render-html';
-import { Button, Eyebrow, Heading, Screen, Text } from '@/components';
+import { AppHeader, Button, Eyebrow, Heading, Screen, Text } from '@/components';
 import { getArticlePreview } from '@/lib/article-preview';
 import { type Article, type ArticleDetail, fetchArticle } from '@/lib/articles';
 import { canAccess, entitledTier } from '@/lib/entitlement';
 import { formatLongDate } from '@/lib/format';
 import { useOnboarding } from '@/onboarding/state';
 import { colors, fg, fonts } from '@/theme/tokens';
-
-function BackButton({ onPress }: { onPress: () => void }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      hitSlop={12}
-      accessibilityRole="button"
-      accessibilityLabel="Go back"
-      style={{ marginBottom: 20, alignSelf: 'flex-start' }}
-    >
-      <Text style={{ fontSize: 26, lineHeight: 26, color: colors.blue }}>←</Text>
-    </Pressable>
-  );
-}
 
 /** The navy members-only panel shown in place of a gated body. */
 function MembersOnlyPanel({ item }: { item: Article }) {
@@ -75,7 +61,7 @@ export default function ArticleRoute() {
   if (detail === null) {
     return (
       <Screen>
-        <BackButton onPress={() => router.back()} />
+        <AppHeader onBack={() => router.back()} />
         <Heading>Article unavailable</Heading>
         <Text style={{ color: fg.secondary, fontSize: 15, lineHeight: 23, marginTop: 12 }}>
           We couldn&rsquo;t load this article right now. Please try again later.
@@ -89,7 +75,7 @@ export default function ArticleRoute() {
     // Cold open (deep link/refresh) — nothing to paint until the fetch resolves.
     return (
       <Screen>
-        <BackButton onPress={() => router.back()} />
+        <AppHeader onBack={() => router.back()} />
         <View style={{ paddingVertical: 48, alignItems: 'center' }}>
           <ActivityIndicator color={colors.blue} />
         </View>
@@ -104,7 +90,7 @@ export default function ArticleRoute() {
 
   return (
     <Screen>
-      <BackButton onPress={() => router.back()} />
+      <AppHeader onBack={() => router.back()} title={summary.type === 'recipe' ? 'Recipe' : 'Article'} />
 
       {summary.image ? (
         <Image
