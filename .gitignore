@@ -10,6 +10,11 @@ supabase/.temp/
 # Large source data — DB dumps live in raw/, contain real PII + password hashes + Stripe ids.
 # Never commit any dump.
 raw/*.sql
+
+# SFTP / any credentials dropped into raw/ — never commit
+raw/*sftp*
+raw/*.env
+raw/.env*
 *.sql.gz
 
 # Migration extract artifacts (subscribers.json/csv/summary) — derived PII, never commit.
