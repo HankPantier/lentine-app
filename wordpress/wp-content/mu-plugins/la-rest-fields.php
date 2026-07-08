@@ -148,9 +148,42 @@ function la_recipe_body_route( $request ) {
 		'id'          => $post_id,
 		'slug'        => $slug,
 		'visibility'  => la_visibility( $post_id ),
-		'recipe_body' => la_assemble_recipe_body( $post_id ),
+		'recipe_body' => la_cached_recipe_body( $post_id ),
 	);
 }
+
+/**
+ * The assembled body walks ~10 ACF repeaters — several seconds of PHP per request, and this
+ * route is authenticated so WP Engine's page cache never applies. Cache the finished HTML in
+ * a transient; editing the recipe (see the hooks below) rebuilds it on the next request.
+ */
+function la_cached_recipe_body( $post_id ) {
+	$cache_key = 'la_recipe_body_' . $post_id;
+	$body      = get_transient( $cache_key );
+	if ( false === $body ) {
+		$body = la_assemble_recipe_body( $post_id );
+		set_transient( $cache_key, $body, 12 * HOUR_IN_SECONDS );
+	}
+	return $body;
+}
+
+// Invalidate on save: the classic editor path (save_post_recipe) and the ACF field save
+// (acf/save_post at priority 20 = after the new field values are written).
+add_action(
+	'save_post_recipe',
+	function ( $post_id ) {
+		delete_transient( 'la_recipe_body_' . $post_id );
+	}
+);
+add_action(
+	'acf/save_post',
+	function ( $post_id ) {
+		if ( 'recipe' === get_post_type( $post_id ) ) {
+			delete_transient( 'la_recipe_body_' . $post_id );
+		}
+	},
+	20
+);
 
 /**
  * Assemble a recipe's gated body as clean HTML (h3/h4/ul/ol/p) for the app's HTML renderer.

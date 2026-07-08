@@ -97,6 +97,75 @@ function gateArticle(src: ArticleSource, tier: Tier | null) {
   return { ...src.summary, locked, contentHtml: locked ? null : src.contentHtml };
 }
 
+/**
+ * Cross-isolate copy of the article-source cache (table `wp_content_cache`, service-role
+ * only — payloads hold paid bodies). The in-isolate Map above only helps when a request
+ * lands on a warm isolate; this one makes the first fetch pay for everyone. Entries are
+ * served for up to SHARED_CACHE_MAX_AGE_MS, and refreshed in the background once older
+ * than SHARED_CACHE_FRESH_MS (stale-while-revalidate — nobody waits on WordPress twice).
+ */
+const SHARED_CACHE_FRESH_MS = 10 * 60_000;
+const SHARED_CACHE_MAX_AGE_MS = 24 * 60 * 60_000;
+
+function adminClient() {
+  return createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+}
+
+async function sharedCacheGet(key: string): Promise<{ src: ArticleSource; fresh: boolean } | null> {
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) return null;
+  try {
+    const { data } = await adminClient()
+      .from('wp_content_cache')
+      .select('payload, fetched_at')
+      .eq('key', key)
+      .maybeSingle();
+    if (!data) return null;
+    const age = Date.now() - new Date(data.fetched_at as string).getTime();
+    if (age >= SHARED_CACHE_MAX_AGE_MS) return null;
+    return { src: data.payload as ArticleSource, fresh: age < SHARED_CACHE_FRESH_MS };
+  } catch {
+    return null; // cache trouble must never break the request path
+  }
+}
+
+async function sharedCachePut(key: string, src: ArticleSource): Promise<void> {
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) return;
+  try {
+    await adminClient()
+      .from('wp_content_cache')
+      .upsert({ key, payload: src, fetched_at: new Date().toISOString() });
+  } catch {
+    // best effort
+  }
+}
+
+/** Run work after the response is sent (Supabase edge runtime); falls back to fire-and-forget. */
+function inBackground(work: Promise<unknown>) {
+  // deno-lint-ignore no-explicit-any
+  const rt = (globalThis as any).EdgeRuntime;
+  const silenced = work.catch(() => {});
+  if (rt?.waitUntil) rt.waitUntil(silenced);
+}
+
+/** Re-fetch a slug's full source from WordPress and refresh both caches. */
+async function revalidateArticle(slug: string): Promise<void> {
+  const [found, body] = await Promise.all([
+    findBySlug(slug),
+    fetchRecipeBody(slug).catch(() => ''), // cheap for posts (404), transient-cached for recipes
+  ]);
+  if (!found) return;
+  const summary = toArticle(found.post, found.type);
+  const contentHtml =
+    found.type === 'recipe'
+      ? body
+      : // deno-lint-ignore no-explicit-any
+        (((found.post as any)?.content?.rendered as string | undefined) ?? '');
+  if (found.type === 'recipe' && !contentHtml) return; // never pin an empty body
+  const src: ArticleSource = { summary, type: found.type, contentHtml };
+  articleSourceCache.set(slug, { at: Date.now(), src });
+  await sharedCachePut(`article:${slug}`, src);
+}
+
 const NAMED_ENTITIES: Record<string, string> = {
   amp: '&',
   nbsp: ' ',
@@ -325,24 +394,34 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get('Authorization');
 
     // The WP data for a slug is entitlement-INDEPENDENT (the gate below is applied per
-    // request), so a short warm-isolate cache is safe — and vital: the origin fetches are
-    // authenticated, which bypasses WP Engine's page cache and can take 10s+ per hop.
+    // request), so caching it is safe — and vital: the origin fetches are authenticated,
+    // which bypasses WP Engine's page cache. Fast path 1: this isolate already has it.
     const cachedSrc = articleSource(body.slug);
     if (cachedSrc) {
       const tier = await resolveTier(authHeader);
       return json({ article: gateArticle(cachedSrc, tier) });
     }
 
-    // Cache miss: everything the response could need runs CONCURRENTLY. The recipe body is
+    // Fast path 2: the cross-isolate shared cache (~100ms) — checked alongside tier
+    // resolution. Stale entries are still served instantly; WordPress is consulted in the
+    // background so the NEXT reader gets the refreshed copy (stale-while-revalidate).
+    const [shared, tier] = await Promise.all([
+      sharedCacheGet(`article:${body.slug}`),
+      resolveTier(authHeader),
+    ]);
+    if (shared) {
+      articleSourceCache.set(body.slug, { at: Date.now(), src: shared.src });
+      if (!shared.fresh) inBackground(revalidateArticle(body.slug));
+      return json({ article: gateArticle(shared.src, tier) });
+    }
+
+    // True miss: everything the response could need runs CONCURRENTLY. The recipe body is
     // fetched speculatively when the caller sent credentials (anonymous callers can never
     // unlock, so they skip the extra origin hit); if the slug turns out to be a post or the
     // caller isn't entitled, the result is simply not used this request — but it still
     // warms the cache for the next one.
     const speculativeBody = authHeader ? fetchRecipeBody(body.slug).catch(() => '') : null;
-    const [found, tier] = await Promise.all([
-      findBySlug(body.slug),
-      resolveTier(authHeader),
-    ]);
+    const found = await findBySlug(body.slug);
     if (!found) return json({ error: 'not found' }, 404);
 
     const summary = toArticle(found.post, found.type);
@@ -361,6 +440,11 @@ Deno.serve(async (req) => {
     // must hit the origin next request instead of pinning an empty body for the TTL.
     if (found.type !== 'recipe' || contentHtml) {
       articleSourceCache.set(body.slug, { at: Date.now(), src });
+      inBackground(sharedCachePut(`article:${body.slug}`, src));
+    } else {
+      // Anonymous first opener of a recipe: no body was fetched for the response — build the
+      // complete source in the background so the cache still gets warmed for everyone.
+      inBackground(revalidateArticle(body.slug));
     }
     return json({ article: gateArticle(src, tier) });
   }
