@@ -6,6 +6,7 @@ import { DOSHA_CONTENT } from '@/content/dosha-content';
 import { setArticlePreview } from '@/lib/article-preview';
 import { type Article, fetchArticles } from '@/lib/articles';
 import { canAccess, entitledTier } from '@/lib/entitlement';
+import { splitByDosha } from '@/lib/feed-sections';
 import { formatLongDate } from '@/lib/format';
 import { TIER_NAME } from '@/onboarding/pricing';
 import { useOnboarding } from '@/onboarding/state';
@@ -103,7 +104,26 @@ export default function HomeRoute() {
   // The tier that currently unlocks bodies (null unless an active/trialing subscription). Drives
   // the instant lock badges; the wp-articles edge function re-verifies the same rule server-side.
   const tier = entitledTier(sub);
-  const sortedArticles = useMemo(() => (articles ? sortArticles(articles, sort) : null), [articles, sort]);
+
+  // Dosha-matched items surface in their own "For your <Dosha>" section (fixed newest-first,
+  // flagged), the rest flows to "More from Lentine" where the sort chips apply. No dosha or
+  // no matches -> the original flat "Latest from Lentine" list.
+  const { matched, rest } = useMemo(
+    () => splitByDosha(articles ?? [], state.dosha),
+    [articles, state.dosha],
+  );
+  const sectioned = matched.length > 0;
+  const sortedMatched = useMemo(() => sortArticles(matched, 'recent'), [matched]);
+  const sortedRest = useMemo(
+    () => (articles ? sortArticles(sectioned ? rest : articles, sort) : null),
+    [articles, sectioned, rest, sort],
+  );
+
+  const openArticle = (a: Article) => {
+    // The reader paints instantly from this summary while the body loads.
+    setArticlePreview(a);
+    router.push({ pathname: '/articles/[slug]', params: { slug: a.slug } });
+  };
 
   // Nudge un-quizzed users to take the dosha quiz, but only every few days once dismissed.
   const showQuizNudge =
@@ -216,27 +236,59 @@ export default function HomeRoute() {
           </Pressable>
         </View>
 
-        {/* Latest from Lentine — real posts + recipes pulled from WordPress */}
+        {/* Latest from Lentine — real posts + recipes pulled from WordPress. Items matching
+            the member's dosha lead in their own flagged section; the rest goes compact. */}
         <View>
-          <Eyebrow style={{ marginBottom: 8 }}>Latest from Lentine</Eyebrow>
           {feedFailed ? (
-            <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18 }}>
-              <Text style={{ color: fg.secondary, fontSize: 14, lineHeight: 21 }}>
-                Couldn&rsquo;t load articles right now.
-              </Text>
-              <Button label="Try again" size="sm" onPress={retryFeed} style={{ marginTop: 12 }} />
-            </View>
-          ) : sortedArticles === null ? (
-            <View style={{ paddingVertical: 24, alignItems: 'center' }}>
-              <ActivityIndicator color={colors.blue} />
-            </View>
-          ) : sortedArticles.length === 0 ? (
-            <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18 }}>
-              <Text style={{ color: fg.secondary, fontSize: 14 }}>Nothing published just yet — check back soon.</Text>
-            </View>
+            <>
+              <Eyebrow style={{ marginBottom: 8 }}>Latest from Lentine</Eyebrow>
+              <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18 }}>
+                <Text style={{ color: fg.secondary, fontSize: 14, lineHeight: 21 }}>
+                  Couldn&rsquo;t load articles right now.
+                </Text>
+                <Button label="Try again" size="sm" onPress={retryFeed} style={{ marginTop: 12 }} />
+              </View>
+            </>
+          ) : sortedRest === null ? (
+            <>
+              <Eyebrow style={{ marginBottom: 8 }}>Latest from Lentine</Eyebrow>
+              <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+                <ActivityIndicator color={colors.blue} />
+              </View>
+            </>
+          ) : sortedRest.length === 0 && !sectioned ? (
+            <>
+              <Eyebrow style={{ marginBottom: 8 }}>Latest from Lentine</Eyebrow>
+              <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18 }}>
+                <Text style={{ color: fg.secondary, fontSize: 14 }}>Nothing published just yet — check back soon.</Text>
+              </View>
+            </>
           ) : (
             <>
-              {sortedArticles.length > 1 ? (
+              {sectioned ? (
+                <>
+                  <Eyebrow color={d.accent} style={{ marginBottom: 8 }}>
+                    {`For your ${d.name}`}
+                  </Eyebrow>
+                  <View style={{ gap: 14 }}>
+                    {sortedMatched.map((a) => (
+                      <ArticleCard
+                        key={a.id}
+                        article={a}
+                        locked={!canAccess(a, tier)}
+                        flag={{ label: 'For you', color: d.accent }}
+                        onPress={() => openArticle(a)}
+                      />
+                    ))}
+                  </View>
+                  {sortedRest.length > 0 ? (
+                    <Eyebrow style={{ marginTop: 24, marginBottom: 8 }}>More from Lentine</Eyebrow>
+                  ) : null}
+                </>
+              ) : (
+                <Eyebrow style={{ marginBottom: 8 }}>Latest from Lentine</Eyebrow>
+              )}
+              {sortedRest.length > 1 ? (
                 <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
                   {SORTS.map((s) => {
                     const selected = sort === s.key;
@@ -270,17 +322,14 @@ export default function HomeRoute() {
                   })}
                 </View>
               ) : null}
-              <View style={{ gap: 14 }}>
-                {sortedArticles.map((a) => (
+              <View style={{ gap: sectioned ? 10 : 14 }}>
+                {sortedRest.map((a) => (
                   <ArticleCard
                     key={a.id}
                     article={a}
+                    variant={sectioned ? 'compact' : 'default'}
                     locked={!canAccess(a, tier)}
-                    onPress={() => {
-                      // The reader paints instantly from this summary while the body loads.
-                      setArticlePreview(a);
-                      router.push({ pathname: '/articles/[slug]', params: { slug: a.slug } });
-                    }}
+                    onPress={() => openArticle(a)}
                   />
                 ))}
               </View>

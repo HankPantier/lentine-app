@@ -160,6 +160,9 @@ function toArticle(post: any, type: ContentType) {
     category: readCategory(post, type),
     date: post.date as string,
     link: post.link as string,
+    // Lowercased ACF dosha tags (recipes; posts have none) — drives the home
+    // "For your <Dosha>" section client-side.
+    dosha: readDoshas(post),
   };
 }
 

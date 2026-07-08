@@ -15,6 +15,8 @@ export interface Article {
   category: string | null;
   date: string;
   link: string;
+  /** Lowercased ACF dosha tags (recipes only; posts carry []). Optional: old cached payloads lack it. */
+  dosha?: string[];
 }
 
 /** A single article. `contentHtml` is present only for verified paid members. */
@@ -26,8 +28,8 @@ export interface ArticleDetail extends Article {
 /** How long content responses stay fresh. A content feed tolerates minutes of staleness. */
 const TTL_MS = 5 * 60 * 1000;
 
-/** Persisted copy of the home feed (summaries only — never paid bodies). */
-const FEED_PERSIST_KEY = 'la_feed_cache_v1';
+/** Persisted copy of the home feed (summaries only — never paid bodies). v2: items carry dosha tags. */
+const FEED_PERSIST_KEY = 'la_feed_cache_v2';
 
 /** A hung request must surface as an error the UI can retry — never an eternal spinner. */
 const REQUEST_TIMEOUT_MS = 12_000;
