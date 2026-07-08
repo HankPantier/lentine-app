@@ -106,7 +106,8 @@ test('a subscribed member sees their plan instead of the join panel', async ({ p
 
   await expect(page.getByText('Active plan')).toBeVisible();
   await expect(page.getByText('Ready to join?')).toHaveCount(0);
-  await expect(page.getByText('Plan changes and cancellation are coming soon.')).toBeVisible();
+  // Plan changes/cancellation live on the account screen (Stripe Customer Portal).
+  await expect(page.getByText('Manage subscription', { exact: true })).toBeVisible();
 });
 
 test('new-user onboarding: membership is an informational step that continues to notifications', async ({ page }) => {

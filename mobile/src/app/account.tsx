@@ -1,9 +1,12 @@
 import { useRouter } from 'expo-router';
-import { type ReactNode, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+import { type ReactNode, useEffect, useState } from 'react';
+import { AppState, Platform, Pressable, View } from 'react-native';
 import { AppHeader, Button, Eyebrow, Field, Heading, Screen, Text } from '@/components';
+import { MANAGE_ON_WEB_URL, manageReturnUrl, openManageSubscription } from '@/lib/billing';
 import { clearContentCache } from '@/lib/content-cache';
 import { formatLongDate } from '@/lib/format';
+import { fetchSubscription } from '@/lib/subscription';
 import {
   DEFAULT_NOTIFICATION_PREFS,
   type NotificationPrefs,
@@ -79,6 +82,43 @@ function AccountBody() {
 
   const dosha = state.dosha ? DOSHA[state.dosha] : null;
   const sub = state.subscription;
+
+  const [managing, setManaging] = useState(false);
+  const [manageFallback, setManageFallback] = useState(false);
+
+  // Portal changes land asynchronously (Stripe webhook → Supabase), so re-read the
+  // subscription whenever the app regains focus — the browser sheet closing on native,
+  // the tab becoming visible again on web (RN-web maps AppState onto visibilitychange).
+  useEffect(() => {
+    if (!state.userId) return;
+    const userId = state.userId;
+    let live = true;
+    const listener = AppState.addEventListener('change', (status) => {
+      if (status !== 'active') return;
+      fetchSubscription(userId).then((subscription) => {
+        // Never clear an existing subscription on a failed/empty read — this is a refresh,
+        // not a reconciliation (auth-reconcile owns sign-out).
+        if (live && subscription) update({ subscription });
+      });
+    });
+    return () => {
+      live = false;
+      listener.remove();
+    };
+  }, [state.userId, update]);
+
+  const manageSubscription = async () => {
+    setManaging(true);
+    const result = await openManageSubscription(manageReturnUrl());
+    setManaging(false);
+    if (result.ok) {
+      WebBrowser.openBrowserAsync(result.url);
+    } else {
+      // Billing isn't manageable via Stripe (pre-cut-over member, transient error) —
+      // hand off to the website instead of dead-ending.
+      setManageFallback(true);
+    }
+  };
 
   const saveName = async () => {
     setSavingName(true);
@@ -235,9 +275,56 @@ function AccountBody() {
               <Text style={{ color: fg.secondary, fontSize: 14, marginTop: 6 }}>
                 {`Billed ${sub.interval === 'year' ? 'yearly' : 'monthly'} · ${STATUS_LABEL[sub.status] ?? sub.status}`}
               </Text>
-              <Text style={{ color: fg.secondary, fontSize: 14, marginTop: 2 }}>
-                {`Renews ${formatLongDate(sub.currentPeriodEnd)}`}
-              </Text>
+              {sub.status === 'cancelled' ? (
+                <>
+                  <Text style={{ color: fg.secondary, fontSize: 14, marginTop: 2 }}>
+                    Your membership has ended.
+                  </Text>
+                  <Button
+                    label="Explore membership"
+                    variant="outline"
+                    size="sm"
+                    onPress={() => router.push('/membership')}
+                    style={{ marginTop: 12 }}
+                  />
+                </>
+              ) : (
+                <Text style={{ color: fg.secondary, fontSize: 14, marginTop: 2 }}>
+                  {`${sub.cancelAtPeriodEnd ? 'Cancels' : 'Renews'} ${formatLongDate(sub.currentPeriodEnd)}`}
+                </Text>
+              )}
+              {sub.status !== 'cancelled' &&
+                (manageFallback ? (
+                  <>
+                    <Text style={{ color: fg.secondary, fontSize: 14, marginTop: 12, lineHeight: 21 }}>
+                      Your membership is managed on lentinealexis.com.
+                    </Text>
+                    {Platform.OS !== 'ios' ? (
+                      <Button
+                        label="Manage on lentinealexis.com"
+                        variant="outline"
+                        size="sm"
+                        onPress={() => WebBrowser.openBrowserAsync(MANAGE_ON_WEB_URL)}
+                        style={{ marginTop: 12 }}
+                      />
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      label={managing ? 'Opening…' : 'Manage subscription'}
+                      variant="outline"
+                      size="sm"
+                      disabled={managing}
+                      onPress={manageSubscription}
+                      style={{ marginTop: 12 }}
+                    />
+                    <Text italic style={{ color: fg.tertiary, fontSize: 12, marginTop: 10, lineHeight: 18 }}>
+                      Change your plan, cancel, or update your card in the secure billing portal.
+                      Changes can take a moment to appear here.
+                    </Text>
+                  </>
+                ))}
             </>
           ) : state.tier ? (
             <>
@@ -260,9 +347,6 @@ function AccountBody() {
               />
             </>
           )}
-          <Text italic style={{ color: fg.tertiary, fontSize: 12, marginTop: 10, lineHeight: 18 }}>
-            Plan changes and cancellation are coming soon.
-          </Text>
         </Card>
       </Section>
 

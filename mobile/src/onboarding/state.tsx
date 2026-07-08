@@ -24,6 +24,9 @@ export interface Subscription {
   interval: Interval;
   status: string;
   currentPeriodEnd: string | null;
+  /** Cancelled in the billing portal but active until currentPeriodEnd ("Cancels <date>").
+   *  Optional: states persisted before this field exist without it (read as false). */
+  cancelAtPeriodEnd?: boolean;
 }
 
 export interface OnboardingState {

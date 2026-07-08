@@ -417,3 +417,10 @@ enabled = true
 # gated `article` action verifies the caller's JWT itself (see functions/wp-articles/index.ts).
 [functions.wp-articles]
 verify_jwt = false
+
+# stripe-webhook is called by Stripe, which sends no Supabase JWT — authenticity comes from
+# the webhook signature instead (see functions/stripe-webhook/index.ts).
+# create-portal-session deliberately has NO entry here: the gateway default (verify_jwt = true)
+# is wanted on top of the handler's own JWT check.
+[functions.stripe-webhook]
+verify_jwt = false

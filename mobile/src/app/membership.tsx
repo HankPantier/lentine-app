@@ -119,11 +119,17 @@ export default function MembershipRoute() {
           </Text>
           <Text style={{ color: fg.onDarkSecondary, fontSize: 14, marginTop: 4 }}>
             {`Billed ${sub.interval === 'year' ? 'yearly' : 'monthly'}`}
-            {sub.currentPeriodEnd ? ` · renews ${formatLongDate(sub.currentPeriodEnd)}` : ''}
+            {sub.currentPeriodEnd
+              ? ` · ${sub.cancelAtPeriodEnd ? 'cancels' : 'renews'} ${formatLongDate(sub.currentPeriodEnd)}`
+              : ''}
           </Text>
-          <Text italic style={{ color: fg.onDarkSecondary, fontSize: 13, marginTop: 8 }}>
-            Plan changes and cancellation are coming soon.
-          </Text>
+          <Button
+            label="Manage subscription"
+            variant="ghostLight"
+            size="sm"
+            onPress={() => router.push('/account')}
+            style={{ marginTop: 12 }}
+          />
         </View>
       ) : null}
 

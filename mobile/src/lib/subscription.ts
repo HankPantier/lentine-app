@@ -17,7 +17,7 @@ function slugOf(rel: TierRel): Tier | null {
 export async function fetchSubscription(userId: string): Promise<Subscription | null> {
   const { data, error } = await supabase
     .from('subscriptions')
-    .select('status, billing_interval, current_period_end, subscription_tiers(slug)')
+    .select('status, billing_interval, current_period_end, cancel_at_period_end, subscription_tiers(slug)')
     .eq('user_id', userId)
     .maybeSingle();
 
@@ -30,5 +30,6 @@ export async function fetchSubscription(userId: string): Promise<Subscription | 
     interval: data.billing_interval as Interval,
     status: data.status as string,
     currentPeriodEnd: (data.current_period_end as string | null) ?? null,
+    cancelAtPeriodEnd: (data.cancel_at_period_end as boolean | null) ?? false,
   };
 }
