@@ -2,12 +2,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   createContext,
   type ReactNode,
+  useCallback,
   useContext,
   useEffect,
   useReducer,
   useState,
 } from 'react';
+import { reconcileAuth } from '@/lib/auth-reconcile';
 import type { NotificationPrefs } from '@/lib/notification-prefs';
+import { supabase } from '@/lib/supabase';
 import { QUESTIONS } from '@/quiz/questions';
 import type { Answer, DoshaKey, Tally } from '@/quiz/types';
 
@@ -51,6 +54,9 @@ export interface OnboardingState {
 }
 
 const STORAGE_KEY = 'la_onb_state_v1';
+
+/** Sentinel: the session lookup failed/timed out — skip reconciliation, don't sign out. */
+const FAIL_OPEN = Symbol('session-unknown');
 
 function emptyAnswers(): Answer[] {
   return Array<Answer>(QUESTIONS.length).fill(null);
@@ -121,21 +127,46 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((raw) => {
-        if (active && raw) {
+    // Load persisted state and the REAL Supabase session together; the session is the
+    // single source of truth for auth, so a stale persisted userId (sign-out elsewhere,
+    // expired token) is reconciled away BEFORE hydrated flips — every screen that gates
+    // on `hydrated` then sees session-truth state. Fail OPEN on session errors/timeouts:
+    // a flaky network must never sign a real member out (the SIGNED_OUT auth event and
+    // the next cold start cover genuinely dead sessions).
+    const sessionUserId: Promise<string | null | typeof FAIL_OPEN> = new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(FAIL_OPEN), 3000);
+      supabase.auth.getSession().then(
+        ({ data }) => {
+          clearTimeout(timer);
+          resolve(data.session?.user.id ?? null);
+        },
+        () => {
+          clearTimeout(timer);
+          resolve(FAIL_OPEN);
+        },
+      );
+    });
+    Promise.all([AsyncStorage.getItem(STORAGE_KEY).catch(() => null), sessionUserId])
+      .then(([raw, sessionUser]) => {
+        if (!active) return;
+        if (raw) {
           try {
             const parsed = JSON.parse(raw) as Partial<OnboardingState>;
             const answers =
               Array.isArray(parsed.answers) && parsed.answers.length === QUESTIONS.length
                 ? (parsed.answers as Answer[])
                 : emptyAnswers();
-            dispatch({ type: 'HYDRATE', payload: { ...initialState(), ...parsed, answers } });
+            const restored = { ...initialState(), ...parsed, answers };
+            const patch =
+              sessionUser === FAIL_OPEN
+                ? null
+                : reconcileAuth({ userId: restored.userId }, sessionUser);
+            dispatch({ type: 'HYDRATE', payload: { ...restored, ...(patch ?? {}) } });
           } catch {
             // ignore corrupt storage; fall back to defaults
           }
         }
-        if (active) setHydrated(true);
+        setHydrated(true);
       })
       .catch(() => {
         if (active) setHydrated(true);
@@ -151,13 +182,19 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     }
   }, [state, hydrated]);
 
-  const value: OnboardingContextValue = {
-    state,
-    hydrated,
-    update: (patch) => dispatch({ type: 'UPDATE', payload: patch }),
-    setAnswer: (index, val) => dispatch({ type: 'SET_ANSWER', index, value: val }),
-    reset: () => dispatch({ type: 'RESET' }),
-  };
+  // Stable identities (dispatch never changes) so consumers can safely list these in
+  // effect deps — e.g. the root AuthListener subscribes once, not on every state change.
+  const update = useCallback(
+    (patch: Partial<OnboardingState>) => dispatch({ type: 'UPDATE', payload: patch }),
+    [],
+  );
+  const setAnswer = useCallback(
+    (index: number, val: DoshaKey) => dispatch({ type: 'SET_ANSWER', index, value: val }),
+    [],
+  );
+  const reset = useCallback(() => dispatch({ type: 'RESET' }), []);
+
+  const value: OnboardingContextValue = { state, hydrated, update, setAnswer, reset };
 
   return <OnboardingContext.Provider value={value}>{children}</OnboardingContext.Provider>;
 }

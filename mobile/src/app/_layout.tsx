@@ -13,7 +13,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { supabase } from '@/lib/supabase';
-import { OnboardingProvider } from '@/onboarding/state';
+import { OnboardingProvider, useOnboarding } from '@/onboarding/state';
 import { colors } from '@/theme/tokens';
 
 SplashScreen.preventAutoHideAsync();
@@ -29,18 +29,26 @@ function paramsFromUrl(url: string): URLSearchParams {
  * Routes a password-recovery link to /set-password on every platform (per the cross-platform
  * rule). Web: the Supabase client auto-parses the fragment and fires PASSWORD_RECOVERY.
  * Native: detectSessionInUrl is off, so we parse the deep link and set the session ourselves.
+ * Also clears persisted auth when the session dies mid-use (token revoked/expired) so the
+ * sign-in CTAs reappear — startup reconciliation lives in the OnboardingProvider.
  */
-function AuthRecoveryListener() {
+function AuthListener() {
   const router = useRouter();
+  const { update } = useOnboarding();
 
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
         router.replace('/set-password');
       }
+      if (event === 'SIGNED_OUT') {
+        // Harmless duplicate after the account screen's reset(); essential when the
+        // session is revoked/expired without an explicit sign-out.
+        update({ userId: null, subscription: null });
+      }
     });
     return () => data.subscription.unsubscribe();
-  }, [router]);
+  }, [router, update]);
 
   const url = Linking.useURL();
   useEffect(() => {
@@ -83,7 +91,7 @@ export default function RootLayout() {
 
   return (
     <OnboardingProvider>
-      <AuthRecoveryListener />
+      <AuthListener />
       <Stack
         screenOptions={{
           headerShown: false,

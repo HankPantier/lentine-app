@@ -1,4 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
+import { seedSession } from './helpers';
 
 /**
  * UX-audit M4: the membership paths. A locked article offers sign-in + in-app membership
@@ -100,6 +101,7 @@ test('a subscribed member sees their plan instead of the join panel', async ({ p
       subscription: { tier: 'recipe', interval: 'year', status: 'active', currentPeriodEnd: '2027-02-02T00:00:00.000Z' },
     }),
   );
+  await seedSession(page); // a seeded userId needs a live session or hydration clears it
   await page.goto('/membership');
 
   await expect(page.getByText('Active plan')).toBeVisible();
@@ -109,6 +111,7 @@ test('a subscribed member sees their plan instead of the join panel', async ({ p
 
 test('new-user onboarding: membership is an informational step that continues to notifications', async ({ page }) => {
   await seed(page, baseState({ mode: 'new', completed: false, userId: 'u_1' }));
+  await seedSession(page);
   await page.goto('/membership');
 
   await expect(page.getByText('Recipe Club', { exact: true })).toBeVisible();
@@ -161,6 +164,7 @@ test('"Maybe later" on notifications never overwrites saved prefs', async ({ pag
       notificationPrefs: { rituals: true, recipes: true, btf: false },
     }),
   );
+  await seedSession(page);
   let patches = 0;
   await page.route('**/rest/v1/profiles**', async (route) => {
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 200, headers: CORS, body: 'ok' });

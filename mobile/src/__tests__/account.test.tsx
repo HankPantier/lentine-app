@@ -11,8 +11,16 @@ jest.mock('expo-router', () => ({
 }));
 
 // No network in these tests — the screen only touches supabase/profile on user action.
+// getSession feeds hydration's auth reconciliation; null session + null seeded userId = no-op.
 jest.mock('@/lib/supabase', () => ({
-  supabase: { auth: { updateUser: jest.fn(), signOut: jest.fn() }, from: jest.fn() },
+  supabase: {
+    auth: {
+      updateUser: jest.fn(),
+      signOut: jest.fn(),
+      getSession: jest.fn(async () => ({ data: { session: null } })),
+    },
+    from: jest.fn(),
+  },
 }));
 jest.mock('@/lib/profile', () => ({ persistNotificationPrefs: jest.fn() }));
 

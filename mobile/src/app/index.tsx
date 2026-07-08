@@ -2,7 +2,6 @@ import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import { Button, DarkScreen, Eyebrow, Rule, Text, Wordmark } from '@/components';
-import { supabase } from '@/lib/supabase';
 import { useOnboarding } from '@/onboarding/state';
 import { colors, fg } from '@/theme/tokens';
 
@@ -10,29 +9,18 @@ export default function SplashRoute() {
   const router = useRouter();
   const { state, hydrated, update } = useOnboarding();
 
-  // Resume: a user who already finished onboarding skips the splash and lands on home.
+  // Resume: a SIGNED-IN user who already finished onboarding skips the splash and lands
+  // on home. Hydration reconciles state.userId against the real Supabase session, so a
+  // stale "completed" browser with no session falls through to the splash and its
+  // sign-in CTA instead of a member dashboard with no way to log in.
   useEffect(() => {
-    if (hydrated && state.completed) {
+    if (hydrated && state.completed && state.userId) {
       router.replace('/home');
     }
-  }, [hydrated, state.completed, router]);
-
-  // Restore the Supabase user id into onboarding state if a session is still active
-  // (e.g. after a reload) but state was cleared. Doesn't force navigation on its own.
-  useEffect(() => {
-    let active = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (active && data.session && !state.userId) {
-        update({ userId: data.session.user.id });
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, [state.userId, update]);
+  }, [hydrated, state.completed, state.userId, router]);
 
   // Wait for persisted state to load so we don't flash the splash to a returning user.
-  if (!hydrated || state.completed) {
+  if (!hydrated || (state.completed && state.userId)) {
     return null;
   }
 
