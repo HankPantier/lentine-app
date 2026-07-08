@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, useWindowDimensions, View } from 'react-native';
 import RenderHtml from 'react-native-render-html';
 import { AppHeader, Button, Eyebrow, Heading, Screen, Text } from '@/components';
+import { tidyArticleHtml } from '@/lib/article-html';
 import { getArticlePreview } from '@/lib/article-preview';
 import { type Article, type ArticleDetail, fetchArticle } from '@/lib/articles';
 import { canAccess, entitledTier } from '@/lib/entitlement';
@@ -157,7 +158,7 @@ export default function ArticleRoute() {
       ) : (
         <RenderHtml
           contentWidth={contentWidth}
-          source={{ html: detail.contentHtml }}
+          source={{ html: tidyArticleHtml(detail.contentHtml) }}
           baseStyle={{ color: colors.blue, fontFamily: fonts.regular, fontSize: 16, lineHeight: 26 }}
           systemFonts={[fonts.regular, fonts.semibold, fonts.bold, fonts.italic]}
           tagsStyles={{
