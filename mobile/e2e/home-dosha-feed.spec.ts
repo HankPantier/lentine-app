@@ -116,19 +116,37 @@ test('dosha-matched items lead in a For-your section with the For-you tag', asyn
   expect(matchedY).toBeLessThan(await titleY(page, POST.title));
 });
 
-test('sort chips reorder only the More section', async ({ page }) => {
+test('filter chips narrow only the More section; the For-your section stays', async ({ page }) => {
   await seed(page, memberState());
   await mockList(page, [OTHER_RECIPE, POST, MATCHED_RECIPE]);
   await page.goto('/home');
 
-  // Recent (default): recipe (06-20) above post (06-19) within the More section.
-  expect(await titleY(page, OTHER_RECIPE.title)).toBeLessThan(await titleY(page, POST.title));
-
-  // Type sort: posts group before recipes — order flips inside More…
-  await page.getByRole('button', { name: 'Sort by Type' }).click();
-  expect(await titleY(page, POST.title)).toBeLessThan(await titleY(page, OTHER_RECIPE.title));
-  // …while the matched item stays pinned on top.
+  // Filter More to Articles: the unmatched recipe disappears, the post stays…
+  await page.getByRole('button', { name: 'Filter by type' }).click();
+  await page.getByRole('button', { name: 'Show Articles' }).click();
+  await expect(page.getByText(POST.title, { exact: true })).toBeVisible();
+  await expect(page.getByText(OTHER_RECIPE.title, { exact: true })).toHaveCount(0);
+  // …while the dosha-matched recipe is untouched (it lives in the For-your section).
+  await expect(page.getByText(MATCHED_RECIPE.title, { exact: true })).toBeVisible();
   expect(await titleY(page, MATCHED_RECIPE.title)).toBeLessThan(await titleY(page, POST.title));
+});
+
+test('the Type row includes the dosha list and filters by tag', async ({ page }) => {
+  await seed(page, memberState());
+  await mockList(page, [OTHER_RECIPE, POST, MATCHED_RECIPE]);
+  await page.goto('/home');
+
+  // Kapha: only the kapha-tagged recipe remains in More (the post is untagged).
+  await page.getByRole('button', { name: 'Filter by type' }).click();
+  await page.getByRole('button', { name: 'Show Kapha' }).click();
+  await expect(page.getByText(OTHER_RECIPE.title, { exact: true })).toBeVisible();
+  await expect(page.getByText(POST.title, { exact: true })).toHaveCount(0);
+
+  // A dosha nothing in More matches -> friendly empty state with a reset.
+  await page.getByRole('button', { name: 'Show Vata' }).click();
+  await expect(page.getByText('Nothing here matches that filter yet.')).toBeVisible();
+  await page.getByRole('button', { name: 'Show everything', exact: true }).click();
+  await expect(page.getByText(POST.title, { exact: true })).toBeVisible();
 });
 
 test('no matches keeps the flat Latest list', async ({ page }) => {
@@ -138,7 +156,7 @@ test('no matches keeps the flat Latest list', async ({ page }) => {
 
   await expect(page.getByText('Latest from Lentine')).toBeVisible();
   await expect(page.getByText('For your Pitta', { exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Sort by Type' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Filter by type' })).toBeVisible();
 });
 
 test('no dosha keeps the flat list even when items carry tags', async ({ page }) => {

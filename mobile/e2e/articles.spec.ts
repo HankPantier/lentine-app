@@ -127,17 +127,46 @@ test('home lists posts + recipes and a back_to_forward member reads the full bod
   await expect(page.getByText('Strength is a summer practice', { exact: false })).toBeVisible();
 });
 
-test('the feed re-sorts in-app between Recent and Type', async ({ page }) => {
+test('the Type chip filters the feed by content type and Recent resets', async ({ page }) => {
   await seed(page, completedState());
   await mockArticles(page, []);
   await page.goto('/home');
 
-  // Default "Recent": newest first → recipe (06-20) sits above the post (06-18).
+  // Default "Recent": everything visible, newest first.
   expect(await titleY(page, RECIPE.title)).toBeLessThan(await titleY(page, POST.title));
 
-  // "Type" groups posts before recipes → the post now sits above the recipe.
-  await page.getByRole('button', { name: 'Sort by Type' }).click();
-  expect(await titleY(page, POST.title)).toBeLessThan(await titleY(page, RECIPE.title));
+  // Type -> Recipes: only the recipe remains.
+  await page.getByRole('button', { name: 'Filter by type' }).click();
+  await page.getByRole('button', { name: 'Show Recipes' }).click();
+  await expect(page.getByText(RECIPE.title, { exact: true })).toBeVisible();
+  await expect(page.getByText(POST.title, { exact: true })).toHaveCount(0);
+  await expect(page.getByText(FREE.title, { exact: true })).toHaveCount(0);
+
+  // Type -> Articles: only the posts remain.
+  await page.getByRole('button', { name: 'Show Articles' }).click();
+  await expect(page.getByText(POST.title, { exact: true })).toBeVisible();
+  await expect(page.getByText(RECIPE.title, { exact: true })).toHaveCount(0);
+
+  // Recent resets to everything.
+  await page.getByRole('button', { name: 'Show everything, newest first' }).click();
+  await expect(page.getByText(RECIPE.title, { exact: true })).toBeVisible();
+  await expect(page.getByText(POST.title, { exact: true })).toBeVisible();
+});
+
+test('the Category chip lets the reader choose a category', async ({ page }) => {
+  await seed(page, completedState());
+  await mockArticles(page, []);
+  await page.goto('/home');
+
+  await page.getByRole('button', { name: 'Filter by category' }).click();
+  await page.getByRole('button', { name: 'Show NOURISH' }).click();
+  await expect(page.getByText(RECIPE.title, { exact: true })).toBeVisible();
+  await expect(page.getByText(POST.title, { exact: true })).toHaveCount(0);
+  await expect(page.getByText(FREE.title, { exact: true })).toHaveCount(0);
+
+  // Tapping the selected value again toggles back to everything.
+  await page.getByRole('button', { name: 'Show NOURISH' }).click();
+  await expect(page.getByText(POST.title, { exact: true })).toBeVisible();
 });
 
 test('lock badges follow the tier: recipe member sees the B2F post locked, recipe + free open', async ({ page }) => {

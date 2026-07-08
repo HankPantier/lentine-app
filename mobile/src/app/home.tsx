@@ -1,11 +1,12 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { AppHeader, ArticleCard, Button, Eyebrow, Heading, Screen, Text } from '@/components';
 import { DOSHA_CONTENT } from '@/content/dosha-content';
 import { setArticlePreview } from '@/lib/article-preview';
 import { type Article, fetchArticles } from '@/lib/articles';
 import { canAccess, entitledTier } from '@/lib/entitlement';
+import { applyFeedFilter, type FeedFilter, feedCategories } from '@/lib/feed-filters';
 import { splitByDosha } from '@/lib/feed-sections';
 import { formatLongDate } from '@/lib/format';
 import { TIER_NAME } from '@/onboarding/pricing';
@@ -15,29 +16,26 @@ import { colors, fg } from '@/theme/tokens';
 
 const SNOOZE_MS = 3 * 24 * 60 * 60 * 1000; // re-show the quiz nudge ~3 days after dismissal
 
-/** Ways to order the "Latest from Lentine" feed in-app. All items stay visible; only order changes. */
-type SortMode = 'recent' | 'type' | 'category';
-const SORTS: { key: SortMode; label: string }[] = [
-  { key: 'recent', label: 'Recent' },
-  { key: 'type', label: 'Type' },
-  { key: 'category', label: 'Category' },
+/** Newest-first — the feed's one and only order. Narrowing happens via filters, not sorts. */
+function byDateDesc(list: Article[]): Article[] {
+  return list.slice().sort((a, b) => b.date.localeCompare(a.date));
+}
+
+/** Which chip group's value row is open. Recent = no group (and resets the filter). */
+type ChipGroup = 'type' | 'category' | null;
+
+/** The Type group's values: content types first, then the dosha list. */
+const TYPE_VALUES: { label: string; filter: FeedFilter }[] = [
+  { label: 'Articles', filter: { kind: 'type', value: 'post' } },
+  { label: 'Recipes', filter: { kind: 'type', value: 'recipe' } },
+  { label: 'Vata', filter: { kind: 'dosha', value: 'vata' } },
+  { label: 'Pitta', filter: { kind: 'dosha', value: 'pitta' } },
+  { label: 'Kapha', filter: { kind: 'dosha', value: 'kapha' } },
 ];
 
-/** Pure, deterministic sort of the merged posts+recipes feed; ties always fall back to newest-first. */
-function sortArticles(list: Article[], mode: SortMode): Article[] {
-  const byDateDesc = (a: Article, b: Article) => b.date.localeCompare(a.date);
-  const copy = list.slice();
-  if (mode === 'type') {
-    return copy.sort((a, b) => (a.type === b.type ? byDateDesc(a, b) : a.type.localeCompare(b.type)));
-  }
-  if (mode === 'category') {
-    return copy.sort((a, b) => {
-      const ca = a.category ?? '~'; // nulls sort last
-      const cb = b.category ?? '~';
-      return ca === cb ? byDateDesc(a, b) : ca.localeCompare(cb);
-    });
-  }
-  return copy.sort(byDateDesc);
+function sameFilter(a: FeedFilter, b: FeedFilter): boolean {
+  if (a.kind !== b.kind) return false;
+  return a.kind === 'all' || (a as { value: string }).value === (b as { value: string }).value;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -62,6 +60,46 @@ function Card({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** One feed filter chip — the same navy-when-selected pill for group and value rows. */
+function Chip({
+  label,
+  selected,
+  a11y,
+  onPress,
+}: {
+  label: string;
+  selected: boolean;
+  a11y: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={a11y}
+      accessibilityState={{ selected }}
+      style={{
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderWidth: 1,
+        borderColor: selected ? colors.blue : colors.gray,
+        backgroundColor: selected ? colors.blue : colors.white,
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 12,
+          letterSpacing: 0.5,
+          textTransform: 'uppercase',
+          color: selected ? colors.white : fg.secondary,
+        }}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 export default function HomeRoute() {
   const router = useRouter();
   const { state, update } = useOnboarding();
@@ -80,7 +118,8 @@ export default function HomeRoute() {
   const [articles, setArticles] = useState<Article[] | null>(null);
   const [feedFailed, setFeedFailed] = useState(false);
   const [feedAttempt, setFeedAttempt] = useState(0);
-  const [sort, setSort] = useState<SortMode>('recent');
+  const [filter, setFilter] = useState<FeedFilter>({ kind: 'all' });
+  const [chipGroup, setChipGroup] = useState<ChipGroup>(null);
   useEffect(() => {
     let active = true;
     fetchArticles(12).then(
@@ -106,18 +145,32 @@ export default function HomeRoute() {
   const tier = entitledTier(sub);
 
   // Dosha-matched items surface in their own "For your <Dosha>" section (fixed newest-first,
-  // flagged), the rest flows to "More from Lentine" where the sort chips apply. No dosha or
+  // flagged), the rest flows to "More from Lentine" where the filter chips apply. No dosha or
   // no matches -> the original flat "Latest from Lentine" list.
   const { matched, rest } = useMemo(
     () => splitByDosha(articles ?? [], state.dosha),
     [articles, state.dosha],
   );
   const sectioned = matched.length > 0;
-  const sortedMatched = useMemo(() => sortArticles(matched, 'recent'), [matched]);
-  const sortedRest = useMemo(
-    () => (articles ? sortArticles(sectioned ? rest : articles, sort) : null),
-    [articles, sectioned, rest, sort],
+  const sortedMatched = useMemo(() => byDateDesc(matched), [matched]);
+  /** The chip-filterable pool: the More section when sectioned, else the whole feed. */
+  const restPool = useMemo(
+    () => (articles ? byDateDesc(sectioned ? rest : articles) : null),
+    [articles, sectioned, rest],
   );
+  const filteredRest = useMemo(
+    () => (restPool ? applyFeedFilter(restPool, filter) : null),
+    [restPool, filter],
+  );
+  const categories = useMemo(() => feedCategories(restPool ?? []), [restPool]);
+
+  // Chip taps. Recent resets; picking an already-selected value toggles back to everything.
+  const pickFilter = (f: FeedFilter) => setFilter((cur) => (sameFilter(cur, f) ? { kind: 'all' } : f));
+  const chipValues = chipGroup === 'type'
+    ? TYPE_VALUES
+    : chipGroup === 'category'
+      ? categories.map((c) => ({ label: c, filter: { kind: 'category', value: c } as FeedFilter }))
+      : [];
 
   const openArticle = (a: Article) => {
     // The reader paints instantly from this summary while the body loads.
@@ -249,14 +302,14 @@ export default function HomeRoute() {
                 <Button label="Try again" size="sm" onPress={retryFeed} style={{ marginTop: 12 }} />
               </View>
             </>
-          ) : sortedRest === null ? (
+          ) : restPool === null || filteredRest === null ? (
             <>
               <Eyebrow style={{ marginBottom: 8 }}>Latest from Lentine</Eyebrow>
               <View style={{ paddingVertical: 24, alignItems: 'center' }}>
                 <ActivityIndicator color={colors.blue} />
               </View>
             </>
-          ) : sortedRest.length === 0 && !sectioned ? (
+          ) : restPool.length === 0 && !sectioned ? (
             <>
               <Eyebrow style={{ marginBottom: 8 }}>Latest from Lentine</Eyebrow>
               <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18 }}>
@@ -281,58 +334,89 @@ export default function HomeRoute() {
                       />
                     ))}
                   </View>
-                  {sortedRest.length > 0 ? (
+                  {restPool.length > 0 ? (
                     <Eyebrow style={{ marginTop: 24, marginBottom: 8 }}>More from Lentine</Eyebrow>
                   ) : null}
                 </>
               ) : (
                 <Eyebrow style={{ marginBottom: 8 }}>Latest from Lentine</Eyebrow>
               )}
-              {sortedRest.length > 1 ? (
-                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-                  {SORTS.map((s) => {
-                    const selected = sort === s.key;
-                    return (
-                      <Pressable
-                        key={s.key}
-                        onPress={() => setSort(s.key)}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Sort by ${s.label}`}
-                        accessibilityState={{ selected }}
-                        style={{
-                          paddingVertical: 6,
-                          paddingHorizontal: 12,
-                          borderWidth: 1,
-                          borderColor: selected ? colors.blue : colors.gray,
-                          backgroundColor: selected ? colors.blue : colors.white,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            letterSpacing: 0.5,
-                            textTransform: 'uppercase',
-                            color: selected ? colors.white : fg.secondary,
-                          }}
-                        >
-                          {s.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
+              {restPool.length > 1 ? (
+                <View style={{ marginBottom: 12 }}>
+                  {/* Primary chips: Recent shows everything; Type/Category open a value row. */}
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <Chip
+                      label="Recent"
+                      selected={filter.kind === 'all' && chipGroup === null}
+                      a11y="Show everything, newest first"
+                      onPress={() => {
+                        setFilter({ kind: 'all' });
+                        setChipGroup(null);
+                      }}
+                    />
+                    <Chip
+                      label="Type"
+                      selected={chipGroup === 'type' || filter.kind === 'type' || filter.kind === 'dosha'}
+                      a11y="Filter by type"
+                      onPress={() => setChipGroup((g) => (g === 'type' ? null : 'type'))}
+                    />
+                    {categories.length > 0 ? (
+                      <Chip
+                        label="Category"
+                        selected={chipGroup === 'category' || filter.kind === 'category'}
+                        a11y="Filter by category"
+                        onPress={() => setChipGroup((g) => (g === 'category' ? null : 'category'))}
+                      />
+                    ) : null}
+                  </View>
+                  {chipValues.length > 0 ? (
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      style={{ marginTop: 8 }}
+                      contentContainerStyle={{ flexDirection: 'row', gap: 8 }}
+                    >
+                      {chipValues.map((v) => (
+                        <Chip
+                          key={v.label}
+                          label={v.label}
+                          selected={sameFilter(filter, v.filter)}
+                          a11y={`Show ${v.label}`}
+                          onPress={() => pickFilter(v.filter)}
+                        />
+                      ))}
+                    </ScrollView>
+                  ) : null}
                 </View>
               ) : null}
-              <View style={{ gap: sectioned ? 10 : 14 }}>
-                {sortedRest.map((a) => (
-                  <ArticleCard
-                    key={a.id}
-                    article={a}
-                    variant={sectioned ? 'compact' : 'default'}
-                    locked={!canAccess(a, tier)}
-                    onPress={() => openArticle(a)}
+              {filteredRest.length === 0 ? (
+                <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18 }}>
+                  <Text style={{ color: fg.secondary, fontSize: 14, lineHeight: 21 }}>
+                    Nothing here matches that filter yet.
+                  </Text>
+                  <Button
+                    label="Show everything"
+                    size="sm"
+                    onPress={() => {
+                      setFilter({ kind: 'all' });
+                      setChipGroup(null);
+                    }}
+                    style={{ marginTop: 12 }}
                   />
-                ))}
-              </View>
+                </View>
+              ) : (
+                <View style={{ gap: sectioned ? 10 : 14 }}>
+                  {filteredRest.map((a) => (
+                    <ArticleCard
+                      key={a.id}
+                      article={a}
+                      variant={sectioned ? 'compact' : 'default'}
+                      locked={!canAccess(a, tier)}
+                      onPress={() => openArticle(a)}
+                    />
+                  ))}
+                </View>
+              )}
             </>
           )}
         </View>
