@@ -72,6 +72,31 @@ function cacheAndRespond(key: string, payload: unknown): Response {
   return new Response(body, { status: 200, headers: { ...CORS, 'Content-Type': 'application/json' } });
 }
 
+/**
+ * Warm-isolate cache of a slug's WP DATA (summary + full body) — deliberately NOT the
+ * response: entitlement varies per caller, so `gateArticle` applies the tier gate on every
+ * request. Same 60s TTL as the list cache. This matters because the article origin fetches
+ * are authenticated (WP Engine's page cache doesn't apply) and can take 10s+ each.
+ */
+interface ArticleSource {
+  summary: ReturnType<typeof toArticle>;
+  type: ContentType;
+  contentHtml: string;
+}
+const articleSourceCache = new Map<string, { at: number; src: ArticleSource }>();
+
+function articleSource(slug: string): ArticleSource | null {
+  const hit = articleSourceCache.get(slug);
+  if (!hit || Date.now() - hit.at >= RESPONSE_CACHE_TTL_MS) return null;
+  return hit.src;
+}
+
+/** Apply the caller's entitlement to cached WP data — the body only leaves for entitled tiers. */
+function gateArticle(src: ArticleSource, tier: Tier | null) {
+  const locked = !canUnlock(src.type, src.summary.visibility, tier);
+  return { ...src.summary, locked, contentHtml: locked ? null : src.contentHtml };
+}
+
 const NAMED_ENTITIES: Record<string, string> = {
   amp: '&',
   nbsp: ' ',
@@ -297,24 +322,47 @@ Deno.serve(async (req) => {
   // --- article (tier-gated) ---
   if (body.action === 'article') {
     if (!body.slug) return json({ error: 'slug required' }, 400);
-    // Slug lookup and tier resolution are independent — run them together. (This was a
-    // 4-stage serial waterfall: find → getUser → subscription → a duplicate body fetch.)
+    const authHeader = req.headers.get('Authorization');
+
+    // The WP data for a slug is entitlement-INDEPENDENT (the gate below is applied per
+    // request), so a short warm-isolate cache is safe — and vital: the origin fetches are
+    // authenticated, which bypasses WP Engine's page cache and can take 10s+ per hop.
+    const cachedSrc = articleSource(body.slug);
+    if (cachedSrc) {
+      const tier = await resolveTier(authHeader);
+      return json({ article: gateArticle(cachedSrc, tier) });
+    }
+
+    // Cache miss: everything the response could need runs CONCURRENTLY. The recipe body is
+    // fetched speculatively when the caller sent credentials (anonymous callers can never
+    // unlock, so they skip the extra origin hit); if the slug turns out to be a post or the
+    // caller isn't entitled, the result is simply not used this request — but it still
+    // warms the cache for the next one.
+    const speculativeBody = authHeader ? fetchRecipeBody(body.slug).catch(() => '') : null;
     const [found, tier] = await Promise.all([
       findBySlug(body.slug),
-      resolveTier(req.headers.get('Authorization')),
+      resolveTier(authHeader),
     ]);
     if (!found) return json({ error: 'not found' }, 404);
 
     const summary = toArticle(found.post, found.type);
-    if (!canUnlock(found.type, summary.visibility, tier)) {
-      return json({ article: { ...summary, locked: true, contentHtml: null } });
+    const unlocked = canUnlock(found.type, summary.visibility, tier);
+    let contentHtml = '';
+    if (found.type === 'recipe') {
+      // The body is awaited only for entitled callers — a locked response never waits on
+      // (or triggers) the extra origin hit.
+      if (unlocked) contentHtml = await (speculativeBody ?? fetchRecipeBody(body.slug).catch(() => ''));
+    } else {
+      // deno-lint-ignore no-explicit-any
+      contentHtml = ((found.post as any)?.content?.rendered as string | undefined) ?? '';
     }
-    const contentHtml =
-      found.type === 'recipe'
-        ? await fetchRecipeBody(summary.slug)
-        : // deno-lint-ignore no-explicit-any
-          (((found.post as any)?.content?.rendered as string | undefined) ?? '');
-    return json({ article: { ...summary, locked: false, contentHtml } });
+    const src: ArticleSource = { summary, type: found.type, contentHtml };
+    // Cache only complete sources: a recipe without its body (locked caller, failed fetch)
+    // must hit the origin next request instead of pinning an empty body for the TTL.
+    if (found.type !== 'recipe' || contentHtml) {
+      articleSourceCache.set(body.slug, { at: Date.now(), src });
+    }
+    return json({ article: gateArticle(src, tier) });
   }
 
   return json({ error: 'unknown action' }, 400);

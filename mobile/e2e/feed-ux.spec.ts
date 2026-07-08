@@ -153,3 +153,32 @@ test('a failed feed load shows a retry state, and retrying recovers', async ({ p
   await expect(page.getByText(RECIPE.title, { exact: true })).toBeVisible();
   await expect(page.getByText('Couldn’t load articles right now.')).toHaveCount(0);
 });
+
+test('a failed article load shows a retry state, and retrying recovers', async ({ page }) => {
+  await seed(page, completedState());
+  let articleCalls = 0;
+  await page.route('**/functions/v1/wp-articles', async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 200, headers: CORS, body: 'ok' });
+    const body = JSON.parse(route.request().postData() || '{}');
+    if (body.action === 'list') {
+      return route.fulfill({ status: 200, headers: CORS, body: JSON.stringify({ articles: [RECIPE] }) });
+    }
+    articleCalls += 1;
+    if (articleCalls === 1) {
+      return route.fulfill({ status: 500, headers: CORS, body: JSON.stringify({ error: 'origin timeout' }) });
+    }
+    return route.fulfill({
+      status: 200,
+      headers: CORS,
+      body: JSON.stringify({ article: { ...RECIPE, locked: false, contentHtml: BODY_HTML } }),
+    });
+  });
+
+  await page.goto('/home');
+  await page.getByRole('button', { name: RECIPE.title }).click();
+
+  // First attempt fails -> the reader offers a retry, not a dead end.
+  await expect(page.getByText('Article unavailable')).toBeVisible();
+  await page.getByRole('button', { name: 'Try again' }).click();
+  await expect(page.getByText('Warm the ghee gently', { exact: false })).toBeVisible();
+});

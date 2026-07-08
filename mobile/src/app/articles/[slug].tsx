@@ -65,6 +65,7 @@ export default function ArticleRoute() {
   const { width } = useWindowDimensions();
   const { state } = useOnboarding();
   const [detail, setDetail] = useState<ArticleDetail | null | undefined>(undefined);
+  const [attempt, setAttempt] = useState(0);
   const preview = slug ? getArticlePreview(slug) : undefined;
 
   useEffect(() => {
@@ -73,7 +74,7 @@ export default function ArticleRoute() {
     return () => {
       active = false;
     };
-  }, [slug]);
+  }, [slug, attempt]);
 
   if (detail === null) {
     return (
@@ -81,8 +82,17 @@ export default function ArticleRoute() {
         <AppHeader onBack={() => router.back()} />
         <Heading>Article unavailable</Heading>
         <Text style={{ color: fg.secondary, fontSize: 15, lineHeight: 23, marginTop: 12 }}>
-          We couldn&rsquo;t load this article right now. Please try again later.
+          We couldn&rsquo;t load this article right now.
         </Text>
+        <Button
+          label="Try again"
+          size="sm"
+          onPress={() => {
+            setDetail(undefined); // back to the loading state while the retry runs
+            setAttempt((n) => n + 1);
+          }}
+          style={{ marginTop: 16, alignSelf: 'flex-start' }}
+        />
       </Screen>
     );
   }

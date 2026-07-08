@@ -34,6 +34,13 @@ const FEED_PERSIST_KEY = 'la_feed_cache_v2';
 /** A hung request must surface as an error the UI can retry — never an eternal spinner. */
 const REQUEST_TIMEOUT_MS = 12_000;
 
+/**
+ * Article bodies come from an uncached, authenticated WordPress origin that can take well
+ * over 12s when the staging box is cold or busy — give the single-article fetch more room.
+ * The reader shows the instant preview header meanwhile, and its error state has a retry.
+ */
+const ARTICLE_TIMEOUT_MS = 25_000;
+
 function withTimeout<T>(promise: Promise<T>, ms = REQUEST_TIMEOUT_MS): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('request timed out')), ms);
@@ -51,8 +58,12 @@ function withTimeout<T>(promise: Promise<T>, ms = REQUEST_TIMEOUT_MS): Promise<T
 }
 
 /** Invoke the wp-articles edge function; throws on transport errors, timeouts, or empty data. */
-async function invokeArticles<T>(body: Record<string, unknown>, pick: (data: any) => T | undefined): Promise<T> {
-  const { data, error } = await withTimeout(supabase.functions.invoke('wp-articles', { body }));
+async function invokeArticles<T>(
+  body: Record<string, unknown>,
+  pick: (data: any) => T | undefined,
+  timeoutMs = REQUEST_TIMEOUT_MS,
+): Promise<T> {
+  const { data, error } = await withTimeout(supabase.functions.invoke('wp-articles', { body }), timeoutMs);
   const value = error ? undefined : pick(data);
   if (value === undefined) throw new Error(error?.message ?? 'no data');
   return value;
@@ -90,7 +101,7 @@ export function fetchToday(dosha: 'vata' | 'pitta' | 'kapha', perPage = 6): Prom
 export async function fetchArticle(slug: string): Promise<ArticleDetail | null> {
   try {
     return await cached(`article:${slug}`, TTL_MS, () =>
-      invokeArticles({ action: 'article', slug }, (d) => d?.article as ArticleDetail | undefined),
+      invokeArticles({ action: 'article', slug }, (d) => d?.article as ArticleDetail | undefined, ARTICLE_TIMEOUT_MS),
     );
   } catch (err) {
     console.warn('[articles] article failed:', err instanceof Error ? err.message : err);
