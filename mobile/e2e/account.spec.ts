@@ -130,6 +130,37 @@ test('notification toggles persist to the profile row', async ({ page }) => {
   expect(patched).toMatchObject({ notification_prefs: { rituals: false, recipes: true, btf: true } });
 });
 
+test('toggles seed from SAVED prefs and expose aria-checked (hydration + a11y regression)', async ({ page }) => {
+  // All-OFF prefs are distinguishable from the all-on default — if the screen mounts before
+  // hydration (the web-reload race) or seeds from DEFAULT_NOTIFICATION_PREFS, this fails.
+  await seed(page, completedState({ notificationPrefs: { rituals: false, recipes: false, btf: false } }));
+
+  let patched: unknown = null;
+  await page.route('**/rest/v1/profiles**', async (route) => {
+    const cors = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
+    const req = route.request();
+    if (req.method() === 'OPTIONS') return route.fulfill({ status: 200, headers: cors, body: 'ok' });
+    if (req.method() === 'PATCH') {
+      patched = JSON.parse(req.postData() || '{}');
+      return route.fulfill({ status: 200, headers: cors, body: JSON.stringify([{}]) });
+    }
+    return route.fulfill({ status: 200, headers: cors, body: JSON.stringify([]) });
+  });
+
+  await page.goto('/account');
+  const rituals = page.getByRole('checkbox', { name: 'Daily rituals' });
+  // toBeChecked reads aria-checked — it both proves the state is exposed to the a11y tree
+  // (screen readers saw nothing before) and that it reflects the member's saved prefs.
+  await expect(rituals).not.toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Back to Forward' })).not.toBeChecked();
+
+  await rituals.click();
+  await expect(rituals).toBeChecked();
+  await expect(page.getByText('Saved.')).toBeVisible();
+  // The persisted baseline is her saved prefs + the one toggle — NOT default-all-on + toggle.
+  expect(patched).toMatchObject({ notification_prefs: { rituals: true, recipes: false, btf: false } });
+});
+
 test('the back button is not a full-width tap target (M3 header regression)', async ({ page }) => {
   await seed(page, completedState());
   await page.goto('/account');

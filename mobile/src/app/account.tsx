@@ -40,6 +40,18 @@ function Card({ children }: { children: ReactNode }) {
 }
 
 export default function AccountRoute() {
+  const { hydrated } = useOnboarding();
+  // The editable fields below seed local state from onboarding state once, at mount. On a
+  // web reload straight onto /account that mount can beat hydration, seeding defaults over
+  // the member's saved values (and a tap would then persist that wrong baseline) — so don't
+  // mount the body until persisted state is in. Same gate as the splash route.
+  if (!hydrated) {
+    return null;
+  }
+  return <AccountBody />;
+}
+
+function AccountBody() {
   const router = useRouter();
   const { state, update, reset } = useOnboarding();
 
@@ -311,8 +323,11 @@ export default function AccountRoute() {
           ).map((p) => (
             <Pressable
               key={p.id}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: prefs[p.id] }}
+              role="checkbox"
+              // RN's cross-platform ARIA prop: react-native-web renders it as aria-checked
+              // (accessibilityState.checked never reaches the web a11y tree); native maps it
+              // back onto accessibilityState.
+              aria-checked={prefs[p.id]}
               accessibilityLabel={p.label}
               disabled={savingPrefs}
               onPress={() => savePrefs({ ...prefs, [p.id]: !prefs[p.id] })}
