@@ -182,3 +182,33 @@ test('a failed article load shows a retry state, and retrying recovers', async (
   await page.getByRole('button', { name: 'Try again' }).click();
   await expect(page.getByText('Warm the ghee gently', { exact: false })).toBeVisible();
 });
+
+test('branding and profile access persist on the reader', async ({ page }) => {
+  await seed(page, completedState());
+  await page.route('**/functions/v1/wp-articles', async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 200, headers: CORS, body: 'ok' });
+    const body = JSON.parse(route.request().postData() || '{}');
+    if (body.action === 'list') {
+      return route.fulfill({ status: 200, headers: CORS, body: JSON.stringify({ articles: [RECIPE] }) });
+    }
+    return route.fulfill({
+      status: 200,
+      headers: CORS,
+      body: JSON.stringify({ article: { ...RECIPE, locked: false, contentHtml: BODY_HTML } }),
+    });
+  });
+
+  await page.goto('/home');
+  await page.getByRole('button', { name: RECIPE.title }).click();
+  await expect(page).toHaveURL(/\/articles\//);
+
+  // The brand and the member's avatar ride along on every screen…
+  // (expo-image renders the accessibilityLabel as the img alt on web)
+  await expect(page.getByAltText('Lentine Alexis').last()).toBeVisible();
+  const avatar = page.getByRole('button', { name: 'Account', exact: true });
+  await expect(avatar).toBeVisible();
+  // …and the avatar is the persistent route to the profile.
+  await avatar.click();
+  await expect(page).toHaveURL(/\/account/);
+  await expect(page.getByText('Your account')).toBeVisible();
+});

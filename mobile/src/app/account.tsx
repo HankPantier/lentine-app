@@ -165,7 +165,8 @@ function AccountBody() {
 
   return (
     <Screen>
-      <AppHeader onBack={() => router.back()} />
+      {/* right={null}: the avatar routes to this very screen — suppress it here. */}
+      <AppHeader onBack={() => router.back()} right={null} />
 
       <Eyebrow>Your account</Eyebrow>
       <Heading style={{ marginTop: 8 }}>

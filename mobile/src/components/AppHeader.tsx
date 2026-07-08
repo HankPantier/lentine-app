@@ -1,7 +1,9 @@
+import { useRouter } from 'expo-router';
 import type { ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
+import { useOnboarding } from '@/onboarding/state';
+import { DOSHA } from '@/quiz/doshas';
 import { colors } from '@/theme/tokens';
-import { Eyebrow } from './Eyebrow';
 import { Text } from './Text';
 import { Wordmark } from './Wordmark';
 
@@ -13,6 +15,9 @@ export const HEADER_GAP = 20;
 
 /** The wordmark's single sanctioned header width (it previously appeared at 130 AND 210). */
 export const HEADER_WORDMARK_WIDTH = 130;
+
+/** Slightly narrower when centered between the back arrow and the avatar. */
+const CENTER_WORDMARK_WIDTH = 110;
 
 /**
  * The one back-arrow implementation. `alignSelf: 'flex-start'` matters: without it the
@@ -33,25 +38,59 @@ export function BackGlyph({ onPress, dark = false }: { onPress: () => void; dark
   );
 }
 
+/**
+ * The member's avatar — the persistent route to their profile. Initial from their first
+ * name, background from their dosha accent (mirrors the home hero's original avatar).
+ */
+function AccountAvatar() {
+  const router = useRouter();
+  const { state } = useOnboarding();
+  const initial = (state.firstName || 'friend').charAt(0).toUpperCase();
+  const accent = DOSHA[state.dosha ?? 'vata'].accent;
+  return (
+    <Pressable
+      onPress={() => router.push('/account')}
+      accessibilityRole="button"
+      accessibilityLabel="Account"
+      hitSlop={10}
+      style={{
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        backgroundColor: accent,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Text weight="bold" style={{ color: colors.blue, fontSize: 14 }}>
+        {initial}
+      </Text>
+    </Pressable>
+  );
+}
+
 interface AppHeaderProps {
-  /** Renders the standard back arrow. */
+  /** Renders the standard back arrow (wordmark moves to the center). */
   onBack?: () => void;
-  /** Optional centered screen title (Eyebrow-styled). Skip it when the body opens with its own heading. */
-  title?: string;
-  /** Right-slot content (e.g. the avatar button on home). */
+  /**
+   * Right-slot content. `undefined` (default) = the account avatar — profile access is
+   * persistent across screens; `null` = nothing (the account screen itself); any node
+   * replaces the avatar.
+   */
   right?: ReactNode;
   /** White tint for navy backgrounds. */
   dark?: boolean;
-  /** Show the wordmark in the left slot instead of a back arrow (home hero). */
-  logo?: boolean;
 }
 
 /**
- * The app's single header: back/logo on the left, optional title centered, optional action on
- * the right, one bottom gap. Onboarding keeps its own OnbTopBar (progress dots), which shares
- * BackGlyph so the arrow itself is one implementation everywhere.
+ * The app's single header, and the two things that persist on EVERY screen: the brand
+ * (wordmark — left on hub screens, centered above content behind a back arrow) and the
+ * route to the member's profile (avatar, right). Onboarding keeps its own OnbTopBar
+ * (progress dots), which shares BackGlyph so the arrow is one implementation everywhere.
  */
-export function AppHeader({ onBack, title, right, dark = false, logo = false }: AppHeaderProps) {
+export function AppHeader({ onBack, right, dark = false }: AppHeaderProps) {
+  // The white asset reads on navy; tint it brand-navy on light screens.
+  const tint = dark ? undefined : colors.blue;
   return (
     <View
       style={{
@@ -62,14 +101,10 @@ export function AppHeader({ onBack, title, right, dark = false, logo = false }: 
       }}
     >
       <View style={{ minWidth: 44, alignItems: 'flex-start' }}>
-        {logo ? (
-          <Wordmark width={HEADER_WORDMARK_WIDTH} />
-        ) : onBack ? (
-          <BackGlyph onPress={onBack} dark={dark} />
-        ) : null}
+        {onBack ? <BackGlyph onPress={onBack} dark={dark} /> : <Wordmark width={HEADER_WORDMARK_WIDTH} tint={tint} />}
       </View>
-      {title ? <Eyebrow light={dark}>{title}</Eyebrow> : null}
-      <View style={{ minWidth: 44, alignItems: 'flex-end' }}>{right ?? null}</View>
+      {onBack ? <Wordmark width={CENTER_WORDMARK_WIDTH} tint={tint} /> : null}
+      <View style={{ minWidth: 44, alignItems: 'flex-end' }}>{right === undefined ? <AccountAvatar /> : right}</View>
     </View>
   );
 }

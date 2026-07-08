@@ -186,30 +186,8 @@ export default function HomeRoute() {
     <Screen padding={0}>
       {/* Hero */}
       <View style={{ backgroundColor: colors.blue, paddingHorizontal: 24, paddingTop: 28, paddingBottom: 32 }}>
-        <AppHeader
-          logo
-          dark
-          right={
-            <Pressable
-              onPress={() => router.push('/account')}
-              accessibilityRole="button"
-              accessibilityLabel="Account"
-              hitSlop={10}
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 17,
-                backgroundColor: d.accent,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Text weight="bold" style={{ color: colors.blue, fontSize: 14 }}>
-                {first.charAt(0).toUpperCase()}
-              </Text>
-            </Pressable>
-          }
-        />
+        {/* No onBack -> wordmark left; the default right slot is the account avatar. */}
+        <AppHeader dark />
         {/* AppHeader owns 20px of the gap; 4 more keeps the hero rhythm at the original 24. */}
         <Eyebrow light color={colors.blueLight} style={{ marginTop: 4 }}>
           {`${greeting()}, ${first}`}

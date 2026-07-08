@@ -117,7 +117,8 @@ export default function ArticleRoute() {
 
   return (
     <Screen>
-      <AppHeader onBack={() => router.back()} title={summary.type === 'recipe' ? 'Recipe' : 'Article'} />
+      {/* The wordmark takes the header's center; the body's eyebrow + heading announce the content. */}
+      <AppHeader onBack={() => router.back()} />
 
       {summary.image ? (
         <Image
