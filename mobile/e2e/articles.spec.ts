@@ -251,6 +251,17 @@ test('Jump to Recipe scrolls to the Ingredients section, then the pill hides', a
   await expect(page.getByRole('button', { name: 'Jump to recipe ingredients' })).toHaveCount(0);
 });
 
+test('the reader back button falls back to home on a cold open (no history)', async ({ page }) => {
+  await seed(page, completedState());
+  await mockArticles(page, [FREE.slug]);
+  await page.goto(`/articles/${FREE.slug}`);
+  await expect(page.getByText(FREE.title, { exact: true })).toBeVisible();
+
+  // Deep link/refresh has no navigation history — back must land home, not GO_BACK-crash.
+  await page.getByRole('button', { name: 'Go back' }).click();
+  await expect(page).toHaveURL(/\/home/);
+});
+
 test('the pill never renders for locked recipes or posts', async ({ page }) => {
   await seed(page, completedState({ subscription: null, tier: null, interval: null }));
   await mockArticles(page, [FREE.slug]);

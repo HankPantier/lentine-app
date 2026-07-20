@@ -91,6 +91,9 @@ function MembersOnlyPanel({ item }: { item: Article }) {
 export default function ArticleRoute() {
   const router = useRouter();
   const { slug } = useLocalSearchParams<{ slug: string }>();
+  // Cold opens (deep link/refresh) have no navigation history — back falls through to home
+  // instead of firing an unhandled GO_BACK.
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/home'));
   const { width } = useWindowDimensions();
   const { state } = useOnboarding();
   const [detail, setDetail] = useState<ArticleDetail | null | undefined>(undefined);
@@ -130,7 +133,7 @@ export default function ArticleRoute() {
       // its forwarded ref at host-node MOUNT, and the scroll view mounts with these early
       // states — a ref added later (loaded state only) would silently never connect.
       <Screen scrollRef={scrollRef}>
-        <AppHeader onBack={() => router.back()} />
+        <AppHeader onBack={goBack} />
         <Heading>Article unavailable</Heading>
         <Text style={{ color: fg.secondary, fontSize: 15, lineHeight: 23, marginTop: 12 }}>
           We couldn&rsquo;t load this article right now.
@@ -153,7 +156,7 @@ export default function ArticleRoute() {
     // Cold open (deep link/refresh) — nothing to paint until the fetch resolves.
     return (
       <Screen scrollRef={scrollRef}>
-        <AppHeader onBack={() => router.back()} />
+        <AppHeader onBack={goBack} />
         <View style={{ paddingVertical: 48, alignItems: 'center' }}>
           <ActivityIndicator color={colors.blue} />
         </View>
@@ -182,7 +185,7 @@ export default function ArticleRoute() {
       }
     >
       {/* The wordmark takes the header's center; the body's eyebrow + heading announce the content. */}
-      <AppHeader onBack={() => router.back()} />
+      <AppHeader onBack={goBack} />
 
       {summary.image ? (
         <Image
