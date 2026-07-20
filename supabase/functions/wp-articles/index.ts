@@ -257,6 +257,9 @@ function toArticle(post: any, type: ContentType) {
     // Lowercased ACF dosha tags (recipes; posts have none) — drives the home
     // "For your <Dosha>" section client-side.
     dosha: readDoshas(post),
+    // Lowercased ACF season tags (recipes; posts have none) — drives the home feed's
+    // season-aware default order and the SEASON/DOSHA meta lines client-side.
+    season: readSeasons(post),
   };
 }
 
@@ -301,6 +304,13 @@ async function resolveTier(authHeader: string | null): Promise<Tier | null> {
 function readDoshas(post: any): string[] {
   const d = post?.dosha;
   return Array.isArray(d) ? d.map((x: unknown) => String(x).toLowerCase()) : [];
+}
+
+/** The recipe's season labels, lowercased (ACF `season` array field, e.g. ["Spring","Fall"]). */
+// deno-lint-ignore no-explicit-any
+function readSeasons(post: any): string[] {
+  const s = post?.season;
+  return Array.isArray(s) ? s.map((x: unknown) => String(x).toLowerCase()) : [];
 }
 
 /** Fetch the most recent items of a post type, normalized; [] on any WP error. */

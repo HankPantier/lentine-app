@@ -1,5 +1,5 @@
 import type { Article } from './articles';
-import { splitByDosha } from './feed-sections';
+import { sinkOutOfSeason, splitByDosha } from './feed-sections';
 
 function article(over: Partial<Article> & { id: number }): Article {
   return {
@@ -44,5 +44,40 @@ describe('splitByDosha', () => {
     expect(matched.map((a) => a.id)).toEqual([2, 4]);
     expect(rest.map((a) => a.id)).toEqual([1, 3]);
     expect(matched.length + rest.length).toBe(list.length);
+  });
+});
+
+describe('sinkOutOfSeason', () => {
+  it('sinks recipes tagged with seasons that exclude the current one', () => {
+    const list = [
+      article({ id: 1, season: ['winter'] }),
+      article({ id: 2, season: ['summer'] }),
+      article({ id: 3, season: ['fall', 'winter'] }),
+    ];
+    expect(sinkOutOfSeason(list, 'summer').map((a) => a.id)).toEqual([2, 1, 3]);
+  });
+
+  it('leaves posts, seasonless items, and old cached payloads in place', () => {
+    const list = [
+      article({ id: 1, type: 'post' }), // posts carry no season
+      article({ id: 2, season: [] }), // recipe explicitly untagged
+      article({ id: 3 }), // old cached payload — field missing
+      article({ id: 4, season: ['summer'] }),
+    ];
+    expect(sinkOutOfSeason(list, 'summer').map((a) => a.id)).toEqual([1, 2, 3, 4]);
+  });
+
+  it('both partitions keep their relative (newest-first) order', () => {
+    const list = [
+      article({ id: 1, season: ['winter'] }),
+      article({ id: 2, season: ['summer'] }),
+      article({ id: 3, season: ['winter'] }),
+      article({ id: 4, season: ['summer'] }),
+    ];
+    expect(sinkOutOfSeason(list, 'summer').map((a) => a.id)).toEqual([2, 4, 1, 3]);
+  });
+
+  it('handles the empty list', () => {
+    expect(sinkOutOfSeason([], 'spring')).toEqual([]);
   });
 });

@@ -3,6 +3,7 @@ import { Pressable, View } from 'react-native';
 import type { Article } from '@/lib/articles';
 import { colors, fg } from '@/theme/tokens';
 import { Eyebrow } from './Eyebrow';
+import { SeasonDoshaMeta } from './SeasonDoshaMeta';
 import { Text } from './Text';
 
 /** Human label for the post type, shown as the card's eyebrow prefix and used by the type sort. */
@@ -151,6 +152,7 @@ export function ArticleCard({
             {article.excerpt}
           </Text>
         ) : null}
+        <SeasonDoshaMeta season={article.season} dosha={article.dosha} style={{ marginTop: 10 }} />
       </View>
     </Pressable>
   );

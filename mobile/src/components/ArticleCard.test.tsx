@@ -49,3 +49,33 @@ describe('ArticleCard compact variant', () => {
     expect(screen.getByLabelText('Golden Kitchari, members only')).toBeTruthy();
   });
 });
+
+describe('ArticleCard season/dosha meta', () => {
+  const TAGGED: Article = { ...ARTICLE, season: ['fall', 'winter'], dosha: ['vata', 'kapha'] };
+
+  it('default variant shows title-cased season and dosha lines when tagged', async () => {
+    await render(<ArticleCard article={TAGGED} onPress={() => {}} />);
+    expect(screen.getByText('Season')).toBeTruthy();
+    expect(screen.getByText('Fall, Winter')).toBeTruthy();
+    expect(screen.getByText('Dosha')).toBeTruthy();
+    expect(screen.getByText('Vata, Kapha')).toBeTruthy();
+  });
+
+  it('shows only the populated line when one field is empty', async () => {
+    await render(<ArticleCard article={{ ...ARTICLE, season: ['summer'], dosha: [] }} onPress={() => {}} />);
+    expect(screen.getByText('Season')).toBeTruthy();
+    expect(screen.queryByText('Dosha')).toBeNull();
+  });
+
+  it('renders neither line when both fields are absent (posts, old cached payloads)', async () => {
+    await render(<ArticleCard article={ARTICLE} onPress={() => {}} />);
+    expect(screen.queryByText('Season')).toBeNull();
+    expect(screen.queryByText('Dosha')).toBeNull();
+  });
+
+  it('compact variant renders no meta lines even when tagged', async () => {
+    await render(<ArticleCard article={TAGGED} onPress={() => {}} variant="compact" />);
+    expect(screen.queryByText('Season')).toBeNull();
+    expect(screen.queryByText('Dosha')).toBeNull();
+  });
+});

@@ -1,16 +1,44 @@
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, useWindowDimensions, View } from 'react-native';
-import RenderHtml from 'react-native-render-html';
-import { AppHeader, Button, Eyebrow, Heading, Screen, Text } from '@/components';
-import { tidyArticleHtml } from '@/lib/article-html';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  type ScrollView,
+  useWindowDimensions,
+  View,
+} from 'react-native';
+import RenderHtml, { type MixedStyleRecord } from 'react-native-render-html';
+import { AppHeader, Button, Eyebrow, Heading, JumpToRecipePill, Screen, SeasonDoshaMeta, Text } from '@/components';
+import { splitAtIngredients, tidyArticleHtml } from '@/lib/article-html';
 import { getArticlePreview } from '@/lib/article-preview';
 import { type Article, type ArticleDetail, fetchArticle } from '@/lib/articles';
 import { canAccess, entitledTier } from '@/lib/entitlement';
 import { formatLongDate } from '@/lib/format';
 import { useOnboarding } from '@/onboarding/state';
 import { colors, fg, fonts } from '@/theme/tokens';
+
+// Shared RenderHtml config, hoisted so a split recipe body (intro + recipe blocks) renders
+// with exactly the same styling as a single-block article.
+const BASE_STYLE = { color: colors.blue, fontFamily: fonts.regular, fontSize: 16, lineHeight: 26 };
+const SYSTEM_FONTS = [fonts.regular, fonts.semibold, fonts.bold, fonts.italic];
+const TAGS_STYLES: MixedStyleRecord = {
+  a: { color: colors.blueBright, textDecorationLine: 'none' },
+  h2: { fontFamily: fonts.bold, fontSize: 22, lineHeight: 30, marginTop: 8 },
+  h3: { fontFamily: fonts.semibold, fontSize: 19, lineHeight: 26, marginTop: 8 },
+  // Recipe bodies (assembled by the edge function) use h4 section headings + ul/ol lists.
+  h4: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 22, marginTop: 12, marginBottom: 2 },
+  p: { marginTop: 6, marginBottom: 6 },
+  ul: { marginTop: 4, marginBottom: 8 },
+  ol: { marginTop: 4, marginBottom: 8 },
+  strong: { fontFamily: fonts.bold },
+  em: { fontFamily: fonts.italic },
+  li: { lineHeight: 26 },
+};
+
+/** Scrolling within this many px of the Ingredients heading counts as "at the recipe". */
+const RECIPE_ARRIVAL_SLOP = 48;
 
 /**
  * The navy members-only panel shown in place of a gated body. Signed-out members get the
@@ -69,6 +97,25 @@ export default function ArticleRoute() {
   const [attempt, setAttempt] = useState(0);
   const preview = slug ? getArticlePreview(slug) : undefined;
 
+  // Jump to Recipe: the unlocked recipe body splits at its Ingredients heading; the second
+  // block's onLayout y (a direct child of the scroll content container) is the jump target.
+  const scrollRef = useRef<ScrollView>(null);
+  const [markerY, setMarkerY] = useState<number | null>(null);
+  const [pastRecipe, setPastRecipe] = useState(false);
+  const tidied = useMemo(
+    () => (detail?.contentHtml ? tidyArticleHtml(detail.contentHtml) : null),
+    [detail],
+  );
+  const parts = useMemo(
+    () => (tidied && detail?.type === 'recipe' ? splitAtIngredients(tidied) : null),
+    [tidied, detail],
+  );
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (markerY == null) return;
+    const { contentOffset, layoutMeasurement } = e.nativeEvent;
+    setPastRecipe(contentOffset.y + layoutMeasurement.height >= markerY + RECIPE_ARRIVAL_SLOP);
+  };
+
   useEffect(() => {
     let active = true;
     if (slug) fetchArticle(slug).then((d) => active && setDetail(d));
@@ -79,7 +126,10 @@ export default function ArticleRoute() {
 
   if (detail === null) {
     return (
-      <Screen>
+      // scrollRef on every Screen in this route: react-native-web's ScrollView only attaches
+      // its forwarded ref at host-node MOUNT, and the scroll view mounts with these early
+      // states — a ref added later (loaded state only) would silently never connect.
+      <Screen scrollRef={scrollRef}>
         <AppHeader onBack={() => router.back()} />
         <Heading>Article unavailable</Heading>
         <Text style={{ color: fg.secondary, fontSize: 15, lineHeight: 23, marginTop: 12 }}>
@@ -102,7 +152,7 @@ export default function ArticleRoute() {
   if (!summary) {
     // Cold open (deep link/refresh) — nothing to paint until the fetch resolves.
     return (
-      <Screen>
+      <Screen scrollRef={scrollRef}>
         <AppHeader onBack={() => router.back()} />
         <View style={{ paddingVertical: 48, alignItems: 'center' }}>
           <ActivityIndicator color={colors.blue} />
@@ -116,8 +166,21 @@ export default function ArticleRoute() {
   // server response stays authoritative and simply confirms (or corrects) it on arrival.
   const predictedLocked = !canAccess(summary, entitledTier(state.subscription));
 
+  const showPill = parts != null && markerY != null && detail != null && !detail.locked && !!detail.contentHtml;
+
   return (
-    <Screen>
+    <Screen
+      scrollRef={scrollRef}
+      onScroll={parts ? onScroll : undefined}
+      overlay={
+        showPill ? (
+          <JumpToRecipePill
+            visible={!pastRecipe}
+            onPress={() => scrollRef.current?.scrollTo({ y: Math.max((markerY ?? 0) - 12, 0), animated: true })}
+          />
+        ) : null
+      }
+    >
       {/* The wordmark takes the header's center; the body's eyebrow + heading announce the content. */}
       <AppHeader onBack={() => router.back()} />
 
@@ -135,6 +198,8 @@ export default function ArticleRoute() {
       <Heading size={28} style={{ marginTop: 8 }}>
         {summary.title}
       </Heading>
+      {/* The site's recipe metadata bar (SEASON / DOSHA), when the item carries the tags. */}
+      <SeasonDoshaMeta season={summary.season} dosha={summary.dosha} style={{ marginTop: 10 }} />
       <Text style={{ color: fg.tertiary, fontSize: 13, marginTop: 8, marginBottom: 16 }}>
         {formatLongDate(summary.date)}
       </Text>
@@ -155,25 +220,37 @@ export default function ArticleRoute() {
           <Text style={{ color: fg.secondary, fontSize: 16, lineHeight: 25 }}>{detail.excerpt}</Text>
           <MembersOnlyPanel item={detail} />
         </View>
+      ) : parts ? (
+        <>
+          {parts.intro ? (
+            <RenderHtml
+              contentWidth={contentWidth}
+              source={{ html: parts.intro }}
+              baseStyle={BASE_STYLE}
+              systemFonts={SYSTEM_FONTS}
+              tagsStyles={TAGS_STYLES}
+              enableExperimentalMarginCollapsing
+            />
+          ) : null}
+          {/* Direct child of the scroll content container, so layout.y is the scroll target. */}
+          <View onLayout={(e) => setMarkerY(e.nativeEvent.layout.y)}>
+            <RenderHtml
+              contentWidth={contentWidth}
+              source={{ html: parts.recipe }}
+              baseStyle={BASE_STYLE}
+              systemFonts={SYSTEM_FONTS}
+              tagsStyles={TAGS_STYLES}
+              enableExperimentalMarginCollapsing
+            />
+          </View>
+        </>
       ) : (
         <RenderHtml
           contentWidth={contentWidth}
-          source={{ html: tidyArticleHtml(detail.contentHtml) }}
-          baseStyle={{ color: colors.blue, fontFamily: fonts.regular, fontSize: 16, lineHeight: 26 }}
-          systemFonts={[fonts.regular, fonts.semibold, fonts.bold, fonts.italic]}
-          tagsStyles={{
-            a: { color: colors.blueBright, textDecorationLine: 'none' },
-            h2: { fontFamily: fonts.bold, fontSize: 22, lineHeight: 30, marginTop: 8 },
-            h3: { fontFamily: fonts.semibold, fontSize: 19, lineHeight: 26, marginTop: 8 },
-            // Recipe bodies (assembled by the edge function) use h4 section headings + ul/ol lists.
-            h4: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 22, marginTop: 12, marginBottom: 2 },
-            p: { marginTop: 6, marginBottom: 6 },
-            ul: { marginTop: 4, marginBottom: 8 },
-            ol: { marginTop: 4, marginBottom: 8 },
-            strong: { fontFamily: fonts.bold },
-            em: { fontFamily: fonts.italic },
-            li: { lineHeight: 26 },
-          }}
+          source={{ html: tidied ?? '' }}
+          baseStyle={BASE_STYLE}
+          systemFonts={SYSTEM_FONTS}
+          tagsStyles={TAGS_STYLES}
           enableExperimentalMarginCollapsing
         />
       )}

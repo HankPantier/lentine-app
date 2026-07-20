@@ -67,6 +67,22 @@ function la_visibility( $post_id ) {
 	return ( $acf === 'free' ) ? 'free' : 'paid';
 }
 
+// Force the recipe CPT into the REST API regardless of how (or where) the theme registers
+// it. The theme's own `show_in_rest` line kept getting lost to prod→staging copies and
+// theme updates; this filter wins over any registration, keeping the whole app bridge
+// restorable by re-uploading mu-plugins alone.
+add_filter(
+	'register_post_type_args',
+	function ( $args, $post_type ) {
+		if ( 'recipe' === $post_type ) {
+			$args['show_in_rest'] = true;
+		}
+		return $args;
+	},
+	10,
+	2
+);
+
 add_action(
 	'rest_api_init',
 	function () {

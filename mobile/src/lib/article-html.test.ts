@@ -1,4 +1,4 @@
-import { tidyArticleHtml } from './article-html';
+import { splitAtIngredients, tidyArticleHtml } from './article-html';
 
 describe('tidyArticleHtml', () => {
   it('strips whitespace-only paragraphs (the WP &nbsp; spacer gaps)', () => {
@@ -32,5 +32,43 @@ describe('tidyArticleHtml', () => {
   it('passes plain content through unchanged', () => {
     const html = '<p>Just an article body with <strong>bold</strong>.</p>';
     expect(tidyArticleHtml(html)).toBe(html);
+  });
+});
+
+describe('splitAtIngredients', () => {
+  const recipeBody =
+    '<p>An intro story.</p><h3>Recipe Notes</h3><p>Notes.</p><h3>Flavor Notes</h3><ul><li>SWEET</li></ul>' +
+    '<h3>Ingredients</h3><ul><li>1 cup oats</li></ul><h3>Instructions</h3><ol><li>Cook.</li></ol>';
+
+  it('splits a recipe body at the Ingredients heading, which leads the recipe part', () => {
+    const parts = splitAtIngredients(recipeBody);
+    expect(parts).not.toBeNull();
+    expect(parts?.intro).toBe(
+      '<p>An intro story.</p><h3>Recipe Notes</h3><p>Notes.</p><h3>Flavor Notes</h3><ul><li>SWEET</li></ul>',
+    );
+    expect(parts?.recipe).toBe('<h3>Ingredients</h3><ul><li>1 cup oats</li></ul><h3>Instructions</h3><ol><li>Cook.</li></ol>');
+  });
+
+  it('returns null when there is no Ingredients heading (posts, partial recipes)', () => {
+    expect(splitAtIngredients('<p>A plain article.</p><h3>Some Section</h3><p>x</p>')).toBeNull();
+  });
+
+  it('tolerates attributes and whitespace on/around the heading', () => {
+    const parts = splitAtIngredients('<p>intro</p><h3 class="wp-block"> Ingredients </h3><ul><li>x</li></ul>');
+    expect(parts?.intro).toBe('<p>intro</p>');
+    expect(parts?.recipe).toBe('<h3 class="wp-block"> Ingredients </h3><ul><li>x</li></ul>');
+  });
+
+  it('a body starting with the heading yields an empty intro', () => {
+    const parts = splitAtIngredients('<h3>Ingredients</h3><ul><li>x</li></ul>');
+    expect(parts?.intro).toBe('');
+    expect(parts?.recipe).toBe('<h3>Ingredients</h3><ul><li>x</li></ul>');
+  });
+
+  it('keeps Recipe Notes / Flavor Notes headings in the intro', () => {
+    const parts = splitAtIngredients(recipeBody);
+    expect(parts?.intro).toContain('<h3>Recipe Notes</h3>');
+    expect(parts?.intro).toContain('<h3>Flavor Notes</h3>');
+    expect(parts?.recipe).not.toContain('Recipe Notes');
   });
 });

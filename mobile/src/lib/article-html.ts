@@ -18,3 +18,18 @@ export function tidyArticleHtml(html: string): string {
     .replace(EMPTY_P, '')
     .replace(LI_OPENING_BLOCK, (_m, liOpen: string, tag: string) => `${liOpen}<${tag} style="margin-top:0"`);
 }
+
+/** The assembled recipe body's Ingredients section heading (see la_assemble_recipe_body). */
+const INGREDIENTS_H3 = /<h3[^>]*>\s*Ingredients\s*<\/h3>/i;
+
+/**
+ * Split a recipe body at its `<h3>Ingredients</h3>` heading so the reader can render the
+ * intro and the recipe as separate blocks (the "Jump to Recipe" scroll target sits between
+ * them). The heading always opens the recipe part. Returns null when the heading is absent
+ * (posts, partial recipes) — callers render the body unchanged.
+ */
+export function splitAtIngredients(html: string): { intro: string; recipe: string } | null {
+  const match = INGREDIENTS_H3.exec(html);
+  if (!match) return null;
+  return { intro: html.slice(0, match.index), recipe: html.slice(match.index) };
+}

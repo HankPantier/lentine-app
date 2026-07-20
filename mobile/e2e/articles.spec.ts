@@ -36,6 +36,10 @@ const RECIPE = {
   category: 'NOURISH',
   date: '2026-06-20T10:00:00',
   link: 'https://lentinealexis.com/recipe/golden-kitchari',
+  // All four seasons -> never demoted by the season-aware order, so the sort assertions
+  // below stay valid year-round. Dosha deliberately excludes the seeded member's (pitta).
+  season: ['spring', 'summer', 'fall', 'winter'],
+  dosha: ['vata', 'kapha'],
 };
 const FREE = {
   id: 3,
@@ -50,6 +54,16 @@ const FREE = {
   link: 'https://lentinealexis.com/morning-pages',
 };
 const LIST = [RECIPE, POST, FREE];
+
+const POST_BODY = '<p>Strength is a summer practice.</p><h3>The flow</h3><p>Five rounds, easy.</p>';
+
+// A recipe body shaped like la_assemble_recipe_body's output: a long intro (forces real
+// scrolling so the Jump-to-Recipe pill has work to do), then Ingredients + Instructions.
+const RECIPE_BODY =
+  Array.from({ length: 30 }, (_, i) => `<p>Intro paragraph ${i + 1} — the story behind this bowl.</p>`).join('') +
+  '<h3>Recipe Notes</h3><p>Soak the rice.</p>' +
+  '<h3>Ingredients</h3><ul><li>1 cup basmati rice</li><li>1/2 cup mung dal</li></ul>' +
+  '<h3>Instructions</h3><ol><li><p>Rinse and cook.</p></li></ol>';
 
 function completedState(over: Record<string, unknown> = {}) {
   return JSON.stringify({
@@ -97,7 +111,7 @@ async function mockArticles(page: Page, unlocked: string[]) {
     const summary = LIST.find((a) => a.slug === body.slug) ?? POST;
     const isUnlocked = unlocked.includes(summary.slug);
     const article = isUnlocked
-      ? { ...summary, locked: false, contentHtml: '<p>Strength is a summer practice.</p><h3>The flow</h3><p>Five rounds, easy.</p>' }
+      ? { ...summary, locked: false, contentHtml: summary.type === 'recipe' ? RECIPE_BODY : POST_BODY }
       : { ...summary, locked: true, contentHtml: null };
     return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ article }) });
   });
@@ -180,7 +194,7 @@ test('lock badges follow the tier: recipe member sees the B2F post locked, recip
   // The recipe opens to its full body for a recipe-tier member.
   await page.getByRole('button', { name: RECIPE.title }).click();
   await expect(page).toHaveURL(/\/articles\//);
-  await expect(page.getByText('Strength is a summer practice', { exact: false })).toBeVisible();
+  await expect(page.getByText('1 cup basmati rice', { exact: false })).toBeVisible();
 });
 
 test('a non-member sees both paid items locked but the free post open', async ({ page }) => {
@@ -197,4 +211,57 @@ test('a non-member sees both paid items locked but the free post open', async ({
   await expect(page.getByRole('button', { name: 'Already a member? Sign in' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Explore membership' })).toBeVisible();
   await expect(page.getByText('Strength is a summer practice', { exact: false })).toHaveCount(0);
+});
+
+test('the recipe card and reader show the season + dosha meta lines; posts show none', async ({ page }) => {
+  await seed(page, completedState(subOf('recipe')));
+  await mockArticles(page, [RECIPE.slug, FREE.slug]);
+  await page.goto('/home');
+
+  // Feed card (default variant) carries the meta lines.
+  await expect(page.getByText('Spring, Summer, Fall, Winter', { exact: true })).toBeVisible();
+  await expect(page.getByText('Vata, Kapha', { exact: true })).toBeVisible();
+
+  // The reader mirrors the site's metadata bar under the title (direct load — the pushed
+  // home screen can stay mounted in the web DOM and would double the text matches).
+  await page.goto(`/articles/${RECIPE.slug}`);
+  await expect(page.getByText('Spring, Summer, Fall, Winter', { exact: true })).toBeVisible();
+  await expect(page.getByText('Vata, Kapha', { exact: true })).toBeVisible();
+
+  // A post has neither tag → no meta lines in its reader.
+  await page.goto(`/articles/${FREE.slug}`);
+  await expect(page.getByText(FREE.title, { exact: true })).toBeVisible();
+  await expect(page.getByText('Season', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Dosha', { exact: true })).toHaveCount(0);
+});
+
+test('Jump to Recipe scrolls to the Ingredients section, then the pill hides', async ({ page }) => {
+  await seed(page, completedState(subOf('recipe')));
+  await mockArticles(page, [RECIPE.slug]);
+  await page.goto(`/articles/${RECIPE.slug}`);
+
+  // The long intro pushes Ingredients well below the fold; the pill floats over it.
+  const pill = page.getByRole('button', { name: 'Jump to recipe ingredients' });
+  await expect(pill).toBeVisible();
+  await expect(page.getByText('Ingredients', { exact: true })).not.toBeInViewport();
+
+  await pill.click();
+  await expect(page.getByText('Ingredients', { exact: true })).toBeInViewport();
+  // Arriving at the recipe hides (unmounts) the pill.
+  await expect(page.getByRole('button', { name: 'Jump to recipe ingredients' })).toHaveCount(0);
+});
+
+test('the pill never renders for locked recipes or posts', async ({ page }) => {
+  await seed(page, completedState({ subscription: null, tier: null, interval: null }));
+  await mockArticles(page, [FREE.slug]);
+
+  // Locked recipe: members-only panel, no pill.
+  await page.goto(`/articles/${RECIPE.slug}`);
+  await expect(page.getByText('Members only')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Jump to recipe ingredients' })).toHaveCount(0);
+
+  // Unlocked post: full body, still no pill (nothing to jump to).
+  await page.goto(`/articles/${FREE.slug}`);
+  await expect(page.getByText('Strength is a summer practice', { exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Jump to recipe ingredients' })).toHaveCount(0);
 });

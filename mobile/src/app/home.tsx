@@ -7,8 +7,9 @@ import { setArticlePreview } from '@/lib/article-preview';
 import { type Article, fetchArticles } from '@/lib/articles';
 import { canAccess, entitledTier } from '@/lib/entitlement';
 import { applyFeedFilter, type FeedFilter, feedCategories } from '@/lib/feed-filters';
-import { splitByDosha } from '@/lib/feed-sections';
+import { sinkOutOfSeason, splitByDosha } from '@/lib/feed-sections';
 import { formatLongDate } from '@/lib/format';
+import { currentSeason } from '@/lib/season';
 import { TIER_NAME } from '@/onboarding/pricing';
 import { useOnboarding } from '@/onboarding/state';
 import { DOSHA } from '@/quiz/doshas';
@@ -16,7 +17,11 @@ import { colors, fg } from '@/theme/tokens';
 
 const SNOOZE_MS = 3 * 24 * 60 * 60 * 1000; // re-show the quiz nudge ~3 days after dismissal
 
-/** Newest-first — the feed's one and only order. Narrowing happens via filters, not sorts. */
+/**
+ * Newest-first — the feed's base order. By default out-of-season recipes then sink to the
+ * bottom (sinkOutOfSeason); the Recent chip restores this pure date order. Narrowing
+ * happens via filters, which preserve whichever order is active.
+ */
 function byDateDesc(list: Article[]): Article[] {
   return list.slice().sort((a, b) => b.date.localeCompare(a.date));
 }
@@ -120,6 +125,10 @@ export default function HomeRoute() {
   const [feedAttempt, setFeedAttempt] = useState(0);
   const [filter, setFilter] = useState<FeedFilter>({ kind: 'all' });
   const [chipGroup, setChipGroup] = useState<ChipGroup>(null);
+  // Season-aware by default: in-season content leads, out-of-season recipes sink. Tapping
+  // Recent switches to pure newest-first for the rest of the session.
+  const [season] = useState(() => currentSeason());
+  const [orderMode, setOrderMode] = useState<'seasonal' | 'recent'>('seasonal');
   useEffect(() => {
     let active = true;
     fetchArticles(12).then(
@@ -154,10 +163,11 @@ export default function HomeRoute() {
   const sectioned = matched.length > 0;
   const sortedMatched = useMemo(() => byDateDesc(matched), [matched]);
   /** The chip-filterable pool: the More section when sectioned, else the whole feed. */
-  const restPool = useMemo(
-    () => (articles ? byDateDesc(sectioned ? rest : articles) : null),
-    [articles, sectioned, rest],
-  );
+  const restPool = useMemo(() => {
+    if (!articles) return null;
+    const sorted = byDateDesc(sectioned ? rest : articles);
+    return orderMode === 'seasonal' ? sinkOutOfSeason(sorted, season) : sorted;
+  }, [articles, sectioned, rest, orderMode, season]);
   const filteredRest = useMemo(
     () => (restPool ? applyFeedFilter(restPool, filter) : null),
     [restPool, filter],
@@ -321,7 +331,8 @@ export default function HomeRoute() {
               )}
               {restPool.length > 1 ? (
                 <View style={{ marginBottom: 12 }}>
-                  {/* Primary chips: Recent shows everything; Type/Category open a value row. */}
+                  {/* Primary chips: Recent shows everything newest-first (dropping the seasonal
+                      demotion); Type/Category open a value row. */}
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     <Chip
                       label="Recent"
@@ -330,6 +341,7 @@ export default function HomeRoute() {
                       onPress={() => {
                         setFilter({ kind: 'all' });
                         setChipGroup(null);
+                        setOrderMode('recent');
                       }}
                     />
                     <Chip
