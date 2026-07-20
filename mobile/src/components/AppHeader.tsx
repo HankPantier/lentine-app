@@ -82,11 +82,27 @@ interface AppHeaderProps {
   dark?: boolean;
 }
 
+/** The wordmark as the brand's home link — tapping it from anywhere lands on /home. */
+function HomeWordmark({ width, tint }: { width: number; tint?: string }) {
+  const router = useRouter();
+  return (
+    <Pressable
+      onPress={() => router.navigate('/home')}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel="Lentine Alexis home"
+    >
+      <Wordmark width={width} tint={tint} />
+    </Pressable>
+  );
+}
+
 /**
  * The app's single header, and the two things that persist on EVERY screen: the brand
- * (wordmark — left on hub screens, centered above content behind a back arrow) and the
- * route to the member's profile (avatar, right). Onboarding keeps its own OnbTopBar
- * (progress dots), which shares BackGlyph so the arrow is one implementation everywhere.
+ * (wordmark — left on hub screens, centered above content behind a back arrow; always a
+ * tap-to-home link) and the route to the member's profile (avatar, right). Onboarding keeps
+ * its own OnbTopBar (progress dots), which shares BackGlyph so the arrow is one
+ * implementation everywhere.
  */
 export function AppHeader({ onBack, right, dark = false }: AppHeaderProps) {
   // The white asset reads on navy; tint it brand-navy on light screens.
@@ -101,9 +117,9 @@ export function AppHeader({ onBack, right, dark = false }: AppHeaderProps) {
       }}
     >
       <View style={{ minWidth: 44, alignItems: 'flex-start' }}>
-        {onBack ? <BackGlyph onPress={onBack} dark={dark} /> : <Wordmark width={HEADER_WORDMARK_WIDTH} tint={tint} />}
+        {onBack ? <BackGlyph onPress={onBack} dark={dark} /> : <HomeWordmark width={HEADER_WORDMARK_WIDTH} tint={tint} />}
       </View>
-      {onBack ? <Wordmark width={CENTER_WORDMARK_WIDTH} tint={tint} /> : null}
+      {onBack ? <HomeWordmark width={CENTER_WORDMARK_WIDTH} tint={tint} /> : null}
       <View style={{ minWidth: 44, alignItems: 'flex-end' }}>{right === undefined ? <AccountAvatar /> : right}</View>
     </View>
   );

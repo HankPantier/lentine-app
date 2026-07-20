@@ -262,6 +262,17 @@ test('the reader back button falls back to home on a cold open (no history)', as
   await expect(page).toHaveURL(/\/home/);
 });
 
+test('tapping the wordmark goes home', async ({ page }) => {
+  await seed(page, completedState());
+  await mockArticles(page, [FREE.slug]);
+  await page.goto(`/articles/${FREE.slug}`);
+  await expect(page.getByText(FREE.title, { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Lentine Alexis home' }).click();
+  await expect(page).toHaveURL(/\/home/);
+  await expect(page.getByText('Latest from Lentine')).toBeVisible();
+});
+
 test('the pill never renders for locked recipes or posts', async ({ page }) => {
   await seed(page, completedState({ subscription: null, tier: null, interval: null }));
   await mockArticles(page, [FREE.slug]);
