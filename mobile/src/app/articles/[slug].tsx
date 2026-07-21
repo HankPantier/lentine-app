@@ -40,6 +40,9 @@ const TAGS_STYLES: MixedStyleRecord = {
 /** Scrolling within this many px of the Ingredients heading counts as "at the recipe". */
 const RECIPE_ARRIVAL_SLOP = 48;
 
+/** The floating pill stays hidden until the reader scrolls past the header's inline button. */
+const PILL_APPEAR_OFFSET = 240;
+
 /**
  * The navy members-only panel shown in place of a gated body. Signed-out members get the
  * sign-in rescue (the old single CTA opened the same article on the website — where they hit
@@ -105,6 +108,7 @@ export default function ArticleRoute() {
   const scrollRef = useRef<ScrollView>(null);
   const [markerY, setMarkerY] = useState<number | null>(null);
   const [pastRecipe, setPastRecipe] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const tidied = useMemo(
     () => (detail?.contentHtml ? tidyArticleHtml(detail.contentHtml) : null),
     [detail],
@@ -114,10 +118,13 @@ export default function ArticleRoute() {
     [tidied, detail],
   );
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    if (markerY == null) return;
     const { contentOffset, layoutMeasurement } = e.nativeEvent;
+    setScrolled(contentOffset.y > PILL_APPEAR_OFFSET);
+    if (markerY == null) return;
     setPastRecipe(contentOffset.y + layoutMeasurement.height >= markerY + RECIPE_ARRIVAL_SLOP);
   };
+  const jumpToRecipe = () =>
+    scrollRef.current?.scrollTo({ y: Math.max((markerY ?? 0) - 12, 0), animated: true });
 
   useEffect(() => {
     let active = true;
@@ -169,19 +176,16 @@ export default function ArticleRoute() {
   // server response stays authoritative and simply confirms (or corrects) it on arrival.
   const predictedLocked = !canAccess(summary, entitledTier(state.subscription));
 
-  const showPill = parts != null && markerY != null && detail != null && !detail.locked && !!detail.contentHtml;
+  const jumpReady = parts != null && markerY != null && detail != null && !detail.locked && !!detail.contentHtml;
+  const hasMetaBand = !!(summary.season?.length || summary.dosha?.length);
 
   return (
     <Screen
       scrollRef={scrollRef}
       onScroll={parts ? onScroll : undefined}
       overlay={
-        showPill ? (
-          <JumpToRecipePill
-            visible={!pastRecipe}
-            onPress={() => scrollRef.current?.scrollTo({ y: Math.max((markerY ?? 0) - 12, 0), animated: true })}
-          />
-        ) : null
+        // Hidden at the top (the inline header button covers that stretch), gone at the recipe.
+        jumpReady ? <JumpToRecipePill visible={scrolled && !pastRecipe} onPress={jumpToRecipe} /> : null
       }
     >
       {/* The wordmark takes the header's center; the body's eyebrow + heading announce the content. */}
@@ -190,22 +194,31 @@ export default function ArticleRoute() {
       {summary.image ? (
         <Image
           source={{ uri: summary.image }}
-          style={{ width: '100%', height: 200, marginBottom: 18 }}
+          // The metadata band docks flush under the image, like the site's hero → band flow.
+          style={{ width: '100%', height: 200, marginBottom: hasMetaBand ? 0 : 18 }}
           contentFit="cover"
           transition={150}
           accessibilityIgnoresInvertColors
         />
       ) : null}
+      <SeasonDoshaMeta season={summary.season} dosha={summary.dosha} style={{ marginBottom: 18 }} />
 
       {summary.category ? <Eyebrow color={colors.blueBright}>{summary.category}</Eyebrow> : null}
       <Heading size={28} style={{ marginTop: 8 }}>
         {summary.title}
       </Heading>
-      {/* The site's recipe metadata bar (SEASON / DOSHA), when the item carries the tags. */}
-      <SeasonDoshaMeta season={summary.season} dosha={summary.dosha} style={{ marginTop: 10 }} />
       <Text style={{ color: fg.tertiary, fontSize: 13, marginTop: 8, marginBottom: 16 }}>
         {formatLongDate(summary.date)}
       </Text>
+      {jumpReady ? (
+        <Button
+          label="Jump to Recipe"
+          variant="outline"
+          size="sm"
+          onPress={jumpToRecipe}
+          style={{ marginBottom: 18, alignSelf: 'flex-start' }}
+        />
+      ) : null}
 
       {detail === undefined ? (
         <View>

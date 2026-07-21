@@ -1,28 +1,27 @@
-import { type StyleProp, View, type ViewStyle } from 'react-native';
+import { type StyleProp, StyleSheet, View, type ViewStyle } from 'react-native';
 import { titleCase } from '@/lib/format';
-import { fg } from '@/theme/tokens';
+import { colors, fg } from '@/theme/tokens';
 import { Text } from './Text';
 
-/** One "SEASON  Fall, Winter" row: small-caps label + title-cased value list. */
-function MetaRow({ label, values }: { label: string; values: string[] }) {
+/** One inline "SEASON: Fall, Winter" field — small-caps label beside its title-cased values. */
+function MetaField({ label, values }: { label: string; values: string[] }) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
       <Text
         italic
-        style={{ fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', lineHeight: 16, color: fg.tertiary }}
+        style={{ fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', lineHeight: 17, color: fg.tertiary }}
       >
         {label}
       </Text>
-      <Text style={{ fontSize: 12, lineHeight: 16, color: fg.secondary, flexShrink: 1 }}>
-        {values.map(titleCase).join(', ')}
-      </Text>
+      <Text style={{ fontSize: 13, lineHeight: 17, color: colors.blue }}>{values.map(titleCase).join(', ')}</Text>
     </View>
   );
 }
 
 /**
- * The recipe's season + dosha tags as plain meta lines, mirroring the website's metadata
- * bar ("SEASON: Spring, Summer · DOSHA: Kapha, Pitta"). Renders nothing when both are
+ * The website's recipe metadata band — "SEASON: Spring, Summer   DOSHA: Kapha, Pitta" — as a
+ * taupe strip framed by a navy hairline, sitting under the hero/card image. Fields flow on
+ * one line and wrap as whole units on narrow screens. Renders nothing when both are
  * empty/absent (posts, old cached payloads), so callers can place it unconditionally.
  */
 export function SeasonDoshaMeta({
@@ -38,9 +37,25 @@ export function SeasonDoshaMeta({
   const hasDosha = !!dosha?.length;
   if (!hasSeason && !hasDosha) return null;
   return (
-    <View style={[{ gap: 2 }, style]}>
-      {hasSeason ? <MetaRow label="Season" values={season as string[]} /> : null}
-      {hasDosha ? <MetaRow label="Dosha" values={dosha as string[]} /> : null}
+    <View
+      style={[
+        {
+          backgroundColor: colors.taupe,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.blue,
+          paddingVertical: 10,
+          paddingHorizontal: 14,
+          flexDirection: 'row',
+          flexWrap: 'wrap',
+          justifyContent: 'center',
+          columnGap: 22,
+          rowGap: 4,
+        },
+        style,
+      ]}
+    >
+      {hasSeason ? <MetaField label="Season:" values={season as string[]} /> : null}
+      {hasDosha ? <MetaField label="Dosha:" values={dosha as string[]} /> : null}
     </View>
   );
 }

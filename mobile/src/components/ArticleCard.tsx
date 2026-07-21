@@ -113,6 +113,8 @@ export function ArticleCard({
           accessibilityIgnoresInvertColors
         />
       ) : null}
+      {/* The site's metadata band sits directly under the image, before the card copy. */}
+      <SeasonDoshaMeta season={article.season} dosha={article.dosha} />
       <View style={{ padding: 18 }}>
         <View
           style={{
@@ -152,7 +154,6 @@ export function ArticleCard({
             {article.excerpt}
           </Text>
         ) : null}
-        <SeasonDoshaMeta season={article.season} dosha={article.dosha} style={{ marginTop: 10 }} />
       </View>
     </Pressable>
   );

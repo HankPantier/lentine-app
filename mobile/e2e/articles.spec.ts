@@ -228,27 +228,44 @@ test('the recipe card and reader show the season + dosha meta lines; posts show 
   await expect(page.getByText('Spring, Summer, Fall, Winter', { exact: true })).toBeVisible();
   await expect(page.getByText('Vata, Kapha', { exact: true })).toBeVisible();
 
-  // A post has neither tag → no meta lines in its reader.
+  // A post has neither tag → no meta band in its reader.
   await page.goto(`/articles/${FREE.slug}`);
   await expect(page.getByText(FREE.title, { exact: true })).toBeVisible();
-  await expect(page.getByText('Season', { exact: true })).toHaveCount(0);
-  await expect(page.getByText('Dosha', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Season:', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Dosha:', { exact: true })).toHaveCount(0);
 });
 
-test('Jump to Recipe scrolls to the Ingredients section, then the pill hides', async ({ page }) => {
+test('the inline Jump to Recipe button scrolls to Ingredients (pill stays hidden at the top)', async ({ page }) => {
   await seed(page, completedState(subOf('recipe')));
   await mockArticles(page, [RECIPE.slug]);
   await page.goto(`/articles/${RECIPE.slug}`);
 
-  // The long intro pushes Ingredients well below the fold; the pill floats over it.
+  // Site-style inline button in the header; the floating pill only appears after scrolling.
+  const inline = page.getByRole('button', { name: 'Jump to Recipe' });
+  await expect(inline).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Jump to recipe ingredients' })).toHaveCount(0);
+  await expect(page.getByText('Ingredients', { exact: true })).not.toBeInViewport();
+
+  await inline.click();
+  await expect(page.getByText('Ingredients', { exact: true })).toBeInViewport();
+});
+
+test('the floating pill appears on scroll, jumps to Ingredients, then hides', async ({ page }) => {
+  await seed(page, completedState(subOf('recipe')));
+  await mockArticles(page, [RECIPE.slug]);
+  await page.goto(`/articles/${RECIPE.slug}`);
+  await expect(page.getByText('Intro paragraph 1', { exact: false }).first()).toBeVisible();
+
+  // Scroll into the intro (past the appear threshold, not yet at the recipe).
+  await page.mouse.move(400, 400);
+  await page.mouse.wheel(0, 350);
   const pill = page.getByRole('button', { name: 'Jump to recipe ingredients' });
   await expect(pill).toBeVisible();
-  await expect(page.getByText('Ingredients', { exact: true })).not.toBeInViewport();
 
   await pill.click();
   await expect(page.getByText('Ingredients', { exact: true })).toBeInViewport();
   // Arriving at the recipe hides (unmounts) the pill.
-  await expect(page.getByRole('button', { name: 'Jump to recipe ingredients' })).toHaveCount(0);
+  await expect(pill).toHaveCount(0);
 });
 
 test('the reader back button falls back to home on a cold open (no history)', async ({ page }) => {
@@ -277,13 +294,15 @@ test('the pill never renders for locked recipes or posts', async ({ page }) => {
   await seed(page, completedState({ subscription: null, tier: null, interval: null }));
   await mockArticles(page, [FREE.slug]);
 
-  // Locked recipe: members-only panel, no pill.
+  // Locked recipe: members-only panel, no jump affordances.
   await page.goto(`/articles/${RECIPE.slug}`);
   await expect(page.getByText('Members only')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Jump to recipe ingredients' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Jump to Recipe' })).toHaveCount(0);
 
-  // Unlocked post: full body, still no pill (nothing to jump to).
+  // Unlocked post: full body, still nothing to jump to.
   await page.goto(`/articles/${FREE.slug}`);
   await expect(page.getByText('Strength is a summer practice', { exact: false })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Jump to recipe ingredients' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Jump to Recipe' })).toHaveCount(0);
 });
