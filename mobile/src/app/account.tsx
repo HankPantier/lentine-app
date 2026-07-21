@@ -264,6 +264,24 @@ function AccountBody() {
         </Card>
       </Section>
 
+      {/* Favorites */}
+      <Section title="Favorites">
+        <Card>
+          <Text style={{ color: fg.secondary, fontSize: 14, lineHeight: 21 }}>
+            {state.favorites.length === 0
+              ? 'Recipes you ♡ in the reader are saved here.'
+              : `${state.favorites.length} saved ${state.favorites.length === 1 ? 'recipe' : 'recipes'}.`}
+          </Text>
+          <Button
+            label="View favorites"
+            variant="outline"
+            size="sm"
+            onPress={() => router.push('/favorites')}
+            style={{ marginTop: 14 }}
+          />
+        </Card>
+      </Section>
+
       {/* Subscription */}
       <Section title="Subscription">
         <Card>

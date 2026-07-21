@@ -68,6 +68,17 @@ describe('AppHeader', () => {
     expect(screen.getByText('R')).toBeTruthy();
     expect(screen.queryByLabelText('Account')).toBeNull();
   });
+
+  it('pairs a favorites heart with the avatar, opening /favorites', async () => {
+    await render(<AppHeader />);
+    await fireEvent.press(screen.getByLabelText('Favorites'));
+    expect(mockPush).toHaveBeenCalledWith('/favorites');
+  });
+
+  it('suppresses the heart alongside the avatar for custom/empty right slots', async () => {
+    await render(<AppHeader right={null} />);
+    expect(screen.queryByLabelText('Favorites')).toBeNull();
+  });
 });
 
 describe('BackGlyph', () => {

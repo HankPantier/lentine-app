@@ -38,6 +38,21 @@ export function BackGlyph({ onPress, dark = false }: { onPress: () => void; dark
   );
 }
 
+/** The persistent route to saved recipes — a heart beside the avatar on every screen. */
+function FavoritesHeart({ dark }: { dark: boolean }) {
+  const router = useRouter();
+  return (
+    <Pressable
+      onPress={() => router.push('/favorites')}
+      accessibilityRole="button"
+      accessibilityLabel="Favorites"
+      hitSlop={10}
+    >
+      <Text style={{ fontSize: 22, lineHeight: 24, color: dark ? colors.white : colors.blue }}>♡</Text>
+    </Pressable>
+  );
+}
+
 /**
  * The member's avatar — the persistent route to their profile. Initial from their first
  * name, background from their dosha accent (mirrors the home hero's original avatar).
@@ -120,7 +135,17 @@ export function AppHeader({ onBack, right, dark = false }: AppHeaderProps) {
         {onBack ? <BackGlyph onPress={onBack} dark={dark} /> : <HomeWordmark width={HEADER_WORDMARK_WIDTH} tint={tint} />}
       </View>
       {onBack ? <HomeWordmark width={CENTER_WORDMARK_WIDTH} tint={tint} /> : null}
-      <View style={{ minWidth: 44, alignItems: 'flex-end' }}>{right === undefined ? <AccountAvatar /> : right}</View>
+      <View style={{ minWidth: 44, alignItems: 'flex-end' }}>
+        {right === undefined ? (
+          // The two persistent member routes ride together: saved recipes, then profile.
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <FavoritesHeart dark={dark} />
+            <AccountAvatar />
+          </View>
+        ) : (
+          right
+        )}
+      </View>
     </View>
   );
 }

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Platform, Pressable } from 'react-native';
 import { Button, Eyebrow, Field, Heading, OnbTopBar, Screen, Text } from '@/components';
 import { clearContentCache } from '@/lib/content-cache';
-import { fetchNotificationPrefs, fetchProfileName, syncDoshaOnAuth } from '@/lib/profile';
+import { fetchNotificationPrefs, fetchProfileName, syncDoshaOnAuth, syncFavoritesOnAuth } from '@/lib/profile';
 import { supabase } from '@/lib/supabase';
 import { fetchSubscription } from '@/lib/subscription';
 import { useOnboarding } from '@/onboarding/state';
@@ -56,8 +56,12 @@ export default function SignupRoute() {
       ...(name ? { firstName: name.firstName, lastName: name.lastName } : {}),
       ...(notificationPrefs ? { notificationPrefs } : {}),
     });
-    // Restore their Dosha from Supabase (or back-fill it) so it survives across devices.
-    const dosha = await syncDoshaOnAuth(data.user.id, state, update);
+    // Restore their Dosha from Supabase (or back-fill it) so it survives across devices, and
+    // merge favorites (union — hearts tapped signed-out or on another device both survive).
+    const [dosha] = await Promise.all([
+      syncDoshaOnAuth(data.user.id, state, update),
+      syncFavoritesOnAuth(data.user.id, state.favorites, update),
+    ]);
     setBusy(false);
     // A member with their subscription and dosha in place has nothing to set up — straight
     // to the app. Re-running the quiz-intro/tier-confirm/notifications interstitials on every

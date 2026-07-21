@@ -1,6 +1,7 @@
 import type { OnboardingState } from '@/onboarding/state';
 import type { Answer, DoshaKey, Tally } from '@/quiz/types';
 import { asAnswers, asTally, isDoshaKey } from './dosha-encoding';
+import { asFavorites, type FavoriteEntry, mergeFavorites } from './favorites-encoding';
 import { type ProfileName, splitName } from './name';
 import { type NotificationPrefs, normalizePrefs } from './notification-prefs';
 import { supabase } from './supabase';
@@ -50,6 +51,63 @@ export async function persistNotificationPrefs(
     .update({ notification_prefs: prefs })
     .eq('id', userId);
   return { error: error?.message ?? null };
+}
+
+/**
+ * Read the member's favorites from their profile (RLS scopes it to their own row). Returns
+ * null on error / no row so the caller keeps whatever is already local; malformed entries in
+ * the stored array are dropped by asFavorites.
+ */
+export async function fetchFavorites(userId: string): Promise<FavoriteEntry[] | null> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('favorites')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return asFavorites(data.favorites);
+}
+
+/**
+ * Persist the member's favorites (whole array — the list is personal-sized). RLS
+ * ("profiles: update own") allows a signed-in user to write their own row only.
+ * Best-effort — returns the error message for the caller to log.
+ */
+export async function persistFavorites(
+  userId: string,
+  favorites: FavoriteEntry[],
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ favorites })
+    .eq('id', userId);
+  return { error: error?.message ?? null };
+}
+
+/**
+ * Reconcile local favorites with the server after auth resolves. Unlike the dosha (where the
+ * server wins), favorites merge as a UNION — hearts tapped while signed out, or on another
+ * device, must both survive the sign-in. The merged list is written back to both sides.
+ * Best-effort: any failure leaves local state intact and is surfaced to the console only.
+ */
+export async function syncFavoritesOnAuth(
+  userId: string,
+  local: FavoriteEntry[],
+  update: (patch: Partial<OnboardingState>) => void,
+): Promise<void> {
+  try {
+    const server = await fetchFavorites(userId);
+    const merged = mergeFavorites(server ?? [], local);
+    update({ favorites: merged });
+    // Skip the write when nothing changed server-side (common case: same list both sides).
+    if (JSON.stringify(merged) !== JSON.stringify(server ?? [])) {
+      const { error } = await persistFavorites(userId, merged);
+      if (error) console.warn('[favorites] back-fill failed:', error);
+    }
+  } catch (e) {
+    console.warn('[favorites] sync failed:', e);
+  }
 }
 
 /** The Dosha result as stored on the member's profile row. */

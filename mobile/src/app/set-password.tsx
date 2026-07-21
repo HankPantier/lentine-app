@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Button, Eyebrow, Field, Heading, Screen, Text } from '@/components';
-import { syncDoshaOnAuth } from '@/lib/profile';
+import { syncDoshaOnAuth, syncFavoritesOnAuth } from '@/lib/profile';
 import { supabase } from '@/lib/supabase';
 import { fetchSubscription } from '@/lib/subscription';
 import { useOnboarding } from '@/onboarding/state';
@@ -48,8 +48,12 @@ export default function SetPasswordRoute() {
       email: data.user.email ?? '',
       subscription: await fetchSubscription(data.user.id),
     });
-    // Restore their Dosha from Supabase (or back-fill it) so it survives across devices.
-    await syncDoshaOnAuth(data.user.id, state, update);
+    // Restore their Dosha from Supabase (or back-fill it) so it survives across devices, and
+    // merge favorites (union — hearts tapped signed-out or on another device both survive).
+    await Promise.all([
+      syncDoshaOnAuth(data.user.id, state, update),
+      syncFavoritesOnAuth(data.user.id, state.favorites, update),
+    ]);
     setBusy(false);
     router.replace('/quiz-intro');
   }

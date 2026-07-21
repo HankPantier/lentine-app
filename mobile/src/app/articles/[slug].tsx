@@ -10,12 +10,14 @@ import {
   View,
 } from 'react-native';
 import RenderHtml, { type MixedStyleRecord } from 'react-native-render-html';
-import { AppHeader, Button, Eyebrow, Heading, JumpToRecipePill, Screen, SeasonDoshaMeta, Text } from '@/components';
+import { AppHeader, Button, Eyebrow, FavoriteButton, Heading, JumpToRecipePill, Screen, SeasonDoshaMeta, Text } from '@/components';
 import { splitAtIngredients, tidyArticleHtml } from '@/lib/article-html';
 import { getArticlePreview } from '@/lib/article-preview';
 import { type Article, type ArticleDetail, fetchArticle } from '@/lib/articles';
 import { canAccess, entitledTier } from '@/lib/entitlement';
+import { isFavorited, toFavoriteEntry, toggleFavorite } from '@/lib/favorites-encoding';
 import { formatLongDate } from '@/lib/format';
+import { persistFavorites } from '@/lib/profile';
 import { useOnboarding } from '@/onboarding/state';
 import { colors, fg, fonts } from '@/theme/tokens';
 
@@ -98,7 +100,7 @@ export default function ArticleRoute() {
   // instead of firing an unhandled GO_BACK.
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/home'));
   const { width } = useWindowDimensions();
-  const { state } = useOnboarding();
+  const { state, update } = useOnboarding();
   const [detail, setDetail] = useState<ArticleDetail | null | undefined>(undefined);
   const [attempt, setAttempt] = useState(0);
   const preview = slug ? getArticlePreview(slug) : undefined;
@@ -179,6 +181,19 @@ export default function ArticleRoute() {
   const jumpReady = parts != null && markerY != null && detail != null && !detail.locked && !!detail.contentHtml;
   const hasMetaBand = !!(summary.season?.length || summary.dosha?.length);
 
+  // Favorites: optimistic — local state is the UI's source of truth; the Supabase write is
+  // best-effort (a signed-out heart back-fills via syncFavoritesOnAuth on the next sign-in).
+  const favorited = isFavorited(state.favorites, summary.slug);
+  const onToggleFavorite = () => {
+    const next = toggleFavorite(state.favorites, toFavoriteEntry(summary, new Date().toISOString()));
+    update({ favorites: next });
+    if (state.userId) {
+      persistFavorites(state.userId, next).then(
+        ({ error }) => error && console.warn('[favorites] persist failed:', error),
+      );
+    }
+  };
+
   return (
     <Screen
       scrollRef={scrollRef}
@@ -212,9 +227,19 @@ export default function ArticleRoute() {
       <Heading size={28} style={{ marginTop: 8 }}>
         {summary.title}
       </Heading>
-      <Text style={{ color: fg.tertiary, fontSize: 13, marginTop: 8, marginBottom: 16 }}>
-        {formatLongDate(summary.date)}
-      </Text>
+      {/* Date left, heart right — the save action rides the metadata row, clear of the body. */}
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginTop: 8,
+          marginBottom: 16,
+        }}
+      >
+        <Text style={{ color: fg.tertiary, fontSize: 13 }}>{formatLongDate(summary.date)}</Text>
+        <FavoriteButton active={favorited} onPress={onToggleFavorite} />
+      </View>
       {jumpReady ? (
         <Button
           label="Jump to Recipe"

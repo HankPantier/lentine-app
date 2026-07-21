@@ -9,6 +9,7 @@ import {
   useState,
 } from 'react';
 import { reconcileAuth } from '@/lib/auth-reconcile';
+import { asFavorites, type FavoriteEntry } from '@/lib/favorites-encoding';
 import type { NotificationPrefs } from '@/lib/notification-prefs';
 import { supabase } from '@/lib/supabase';
 import { QUESTIONS } from '@/quiz/questions';
@@ -54,6 +55,8 @@ export interface OnboardingState {
   quizNudgeDismissedAt: number | null;
   /** Notification category preferences; null until the member sets them (onboarding or account). */
   notificationPrefs: NotificationPrefs | null;
+  /** Recipes hearted in the reader, newest first. Local-first; synced with Supabase at sign-in. */
+  favorites: FavoriteEntry[];
 }
 
 const STORAGE_KEY = 'la_onb_state_v1';
@@ -84,6 +87,7 @@ function initialState(): OnboardingState {
     completed: false,
     quizNudgeDismissedAt: null,
     notificationPrefs: null,
+    favorites: [],
   };
 }
 
@@ -159,7 +163,10 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
               Array.isArray(parsed.answers) && parsed.answers.length === QUESTIONS.length
                 ? (parsed.answers as Answer[])
                 : emptyAnswers();
-            const restored = { ...initialState(), ...parsed, answers };
+            // Coerce persisted favorites through the same validator used for jsonb reads —
+            // a corrupt entry must not take down hydration.
+            const favorites = asFavorites(parsed.favorites);
+            const restored = { ...initialState(), ...parsed, answers, favorites };
             const patch =
               sessionUser === FAIL_OPEN
                 ? null
