@@ -1,19 +1,20 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { AppHeader, ArticleCard, Button, Eyebrow, Heading, Screen, Text } from '@/components';
 import { DOSHA_CONTENT } from '@/content/dosha-content';
 import { setArticlePreview } from '@/lib/article-preview';
-import { type Article, fetchArticles } from '@/lib/articles';
+import { type Article, fetchArticles, searchArticles } from '@/lib/articles';
 import { canAccess, entitledTier } from '@/lib/entitlement';
 import { applyFeedFilter, type FeedFilter, feedCategories } from '@/lib/feed-filters';
 import { sinkOutOfSeason, splitByDosha } from '@/lib/feed-sections';
 import { formatLongDate } from '@/lib/format';
+import { normalizeQuery, SEARCH_DEBOUNCE_MS } from '@/lib/search';
 import { currentSeason } from '@/lib/season';
 import { TIER_NAME } from '@/onboarding/pricing';
 import { useOnboarding } from '@/onboarding/state';
 import { DOSHA } from '@/quiz/doshas';
-import { colors, fg } from '@/theme/tokens';
+import { colors, fg, fonts, radii } from '@/theme/tokens';
 
 const SNOOZE_MS = 3 * 24 * 60 * 60 * 1000; // re-show the quiz nudge ~3 days after dismissal
 
@@ -105,6 +106,64 @@ function Chip({
   );
 }
 
+/**
+ * Inline full-catalog search input. Styled per Field's recipe (white fill, gray hairline,
+ * teal on focus, sharp corners, 16px text) but without its label/error form semantics.
+ */
+function SearchBar({
+  value,
+  onChangeText,
+  onSubmit,
+  onClear,
+}: {
+  value: string;
+  onChangeText: (t: string) => void;
+  onSubmit: () => void;
+  onClear: () => void;
+}) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <View style={{ marginBottom: 12 }}>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        onSubmitEditing={onSubmit}
+        placeholder="Search recipes & articles"
+        placeholderTextColor={fg.tertiary}
+        returnKeyType="search"
+        autoCapitalize="none"
+        autoCorrect={false}
+        accessibilityLabel="Search recipes and articles"
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        style={{
+          fontFamily: fonts.regular,
+          fontSize: 16, // 16px avoids iOS zoom-on-focus
+          color: colors.blue,
+          backgroundColor: colors.white,
+          borderWidth: 1,
+          borderColor: focused ? colors.blueLight : colors.gray,
+          borderRadius: radii.sharp,
+          paddingVertical: 13,
+          paddingLeft: 14,
+          paddingRight: 40, // room for the clear ✕
+        }}
+      />
+      {value.length > 0 ? (
+        <Pressable
+          onPress={onClear}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Clear search"
+          style={{ position: 'absolute', right: 14, top: 0, bottom: 0, justifyContent: 'center' }}
+        >
+          <Text style={{ color: fg.tertiary, fontSize: 18, lineHeight: 18 }}>✕</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 export default function HomeRoute() {
   const router = useRouter();
   const { state, update } = useOnboarding();
@@ -148,6 +207,51 @@ export default function HomeRoute() {
     setArticles(null);
     setFeedAttempt((n) => n + 1);
   };
+
+  // Full-catalog search. rawQuery mirrors the input; debouncedQuery (normalized) is what
+  // actually gets fetched — null means "not searching". While a query is active the feed
+  // area shows results instead of the sectioned feed; clearing restores the feed (and any
+  // chip filter state) untouched.
+  const [rawQuery, setRawQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState<string | null>(null);
+  const [results, setResults] = useState<Article[] | null>(null);
+  const [searchFailed, setSearchFailed] = useState(false);
+  const [searchAttempt, setSearchAttempt] = useState(0);
+  // Debounce keystrokes into debouncedQuery; too-short queries stop the search immediately.
+  useEffect(() => {
+    const q = normalizeQuery(rawQuery);
+    if (q === null) {
+      setDebouncedQuery(null);
+      return;
+    }
+    const timer = setTimeout(() => setDebouncedQuery(q), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [rawQuery]);
+  // Fetch results for the debounced query (race-guarded like the feed effect above).
+  useEffect(() => {
+    if (debouncedQuery === null) {
+      setResults(null);
+      setSearchFailed(false);
+      return;
+    }
+    let active = true;
+    setResults(null);
+    setSearchFailed(false);
+    searchArticles(debouncedQuery).then(
+      (a) => active && setResults(a),
+      () => active && setSearchFailed(true),
+    );
+    return () => {
+      active = false;
+    };
+  }, [debouncedQuery, searchAttempt]);
+  const searchMode = normalizeQuery(rawQuery) !== null;
+  // The keyboard's Search key skips the debounce wait.
+  const submitSearch = () => {
+    const q = normalizeQuery(rawQuery);
+    if (q !== null) setDebouncedQuery(q);
+  };
+  const clearSearch = () => setRawQuery('');
 
   // The tier that currently unlocks bodies (null unless an active/trialing subscription). Drives
   // the instant lock badges; the wp-articles edge function re-verifies the same rule server-side.
@@ -280,7 +384,47 @@ export default function HomeRoute() {
         {/* Latest from Lentine — real posts + recipes pulled from WordPress. Items matching
             the member's dosha lead in their own flagged section; the rest goes compact. */}
         <View>
-          {feedFailed ? (
+          <SearchBar value={rawQuery} onChangeText={setRawQuery} onSubmit={submitSearch} onClear={clearSearch} />
+          {searchMode ? (
+            <>
+              <Eyebrow style={{ marginBottom: 8 }}>Search results</Eyebrow>
+              {searchFailed ? (
+                <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18 }}>
+                  <Text style={{ color: fg.secondary, fontSize: 14, lineHeight: 21 }}>
+                    Couldn&rsquo;t search right now.
+                  </Text>
+                  <Button
+                    label="Try again"
+                    size="sm"
+                    onPress={() => setSearchAttempt((n) => n + 1)}
+                    style={{ marginTop: 12 }}
+                  />
+                </View>
+              ) : results === null ? (
+                <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+                  <ActivityIndicator color={colors.blue} />
+                </View>
+              ) : results.length === 0 ? (
+                <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18 }}>
+                  <Text style={{ color: fg.secondary, fontSize: 14, lineHeight: 21 }}>
+                    No matches for that search.
+                  </Text>
+                  <Button label="Clear search" size="sm" onPress={clearSearch} style={{ marginTop: 12 }} />
+                </View>
+              ) : (
+                <View style={{ gap: 14 }}>
+                  {results.map((a) => (
+                    <ArticleCard
+                      key={a.id}
+                      article={a}
+                      locked={!canAccess(a, tier)}
+                      onPress={() => openArticle(a)}
+                    />
+                  ))}
+                </View>
+              )}
+            </>
+          ) : feedFailed ? (
             <>
               <Eyebrow style={{ marginBottom: 8 }}>Latest from Lentine</Eyebrow>
               <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18 }}>

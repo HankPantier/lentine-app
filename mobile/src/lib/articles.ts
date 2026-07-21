@@ -96,6 +96,18 @@ export function fetchToday(dosha: 'vata' | 'pitta' | 'kapha', perPage = 6): Prom
 }
 
 /**
+ * Full-catalog search across posts + recipes (public). The edge function passes the query to
+ * WordPress REST `?search=` — this finds items well beyond the recent home feed. Cached in
+ * memory only (queries are too varied to be worth persisting). Throws on failure so the home
+ * screen can show a retry state — an API error must not masquerade as "no matches".
+ */
+export function searchArticles(query: string, perPage = 20): Promise<Article[]> {
+  return cached(`search:${query.toLowerCase()}:${perPage}`, TTL_MS, () =>
+    invokeArticles({ action: 'search', query, perPage }, (d) => d?.articles as Article[] | undefined),
+  );
+}
+
+/**
  * A single article by slug. supabase-js attaches the signed-in user's JWT to the invoke, so
  * the function can verify entitlement and return the full body to paid members. Cached in
  * memory only (bodies never touch disk). Returns null on failure.

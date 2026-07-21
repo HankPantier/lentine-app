@@ -1,14 +1,18 @@
 // wp-articles — the app's content seam to WordPress.
 //
-// Three actions over POST:
+// Four actions over POST:
 //   { action: 'list', perPage? }      → public: recent POSTS + RECIPES, merged, newest-first.
 //                                        Each item carries `type` ('post'|'recipe') and
 //                                        `visibility` ('free'|'paid') so the app draws lock badges.
+//   { action: 'search', query, perPage? } → public: full-catalog POSTS + RECIPES matching the
+//                                        query via WP REST `?search=`, merged, newest-first.
+//                                        Note: recipe bodies live in ACF, so `?search=` matches
+//                                        recipe titles/excerpts only.
 //   { action: 'today', dosha, perPage? } → public: recipes matched to the member's dosha.
 //   { action: 'article', slug }       → tier-gated: the full body ONLY when the caller's Supabase
 //                                        subscription TIER permits it (see canUnlock).
 //
-// list/today responses are cached in warm-isolate memory for 60s; article never is.
+// list/search/today responses are cached in warm-isolate memory for 60s; article never is.
 //
 // Why this shape: the live WordPress site gates bodies server-side, so a full body needs an
 // authenticated WP request. Auth + entitlement live in Supabase, so we keep the WordPress
@@ -68,6 +72,8 @@ function cachedResponse(key: string): Response | null {
 
 function cacheAndRespond(key: string, payload: unknown): Response {
   const body = JSON.stringify(payload);
+  // Distinct search queries would otherwise grow the map unbounded in a warm isolate.
+  if (responseCache.size > 100) responseCache.clear();
   responseCache.set(key, { at: Date.now(), body });
   return new Response(body, { status: 200, headers: { ...CORS, 'Content-Type': 'application/json' } });
 }
@@ -313,10 +319,11 @@ function readSeasons(post: any): string[] {
   return Array.isArray(s) ? s.map((x: unknown) => String(x).toLowerCase()) : [];
 }
 
-/** Fetch the most recent items of a post type, normalized; [] on any WP error. */
-async function fetchType(type: ContentType, perPage: number) {
+/** Fetch the most recent items of a post type (optionally matching `search`), normalized; [] on any WP error. */
+async function fetchType(type: ContentType, perPage: number, search?: string) {
   const base = type === 'recipe' ? 'recipe' : 'posts';
-  const res = await fetch(wpUrl(`${base}?_embed=1&per_page=${perPage}&orderby=date&order=desc`));
+  const searchParam = search ? `&search=${encodeURIComponent(search)}` : '';
+  const res = await fetch(wpUrl(`${base}?_embed=1&per_page=${perPage}&orderby=date&order=desc${searchParam}`));
   if (!res.ok) return [];
   const items = await res.json();
   return Array.isArray(items) ? items.map((p) => toArticle(p, type)) : [];
@@ -356,7 +363,7 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
   if (!WP_BASE_URL) return json({ error: 'WP_BASE_URL not configured' }, 500);
 
-  let body: { action?: string; slug?: string; perPage?: number; dosha?: string };
+  let body: { action?: string; slug?: string; perPage?: number; dosha?: string; query?: string };
   try {
     body = await req.json();
   } catch {
@@ -370,6 +377,27 @@ Deno.serve(async (req) => {
     const cached = cachedResponse(cacheKey);
     if (cached) return cached;
     const [posts, recipes] = await Promise.all([fetchType('post', perPage), fetchType('recipe', perPage)]);
+    const articles = [...posts, ...recipes]
+      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+      .slice(0, perPage);
+    return cacheAndRespond(cacheKey, { articles });
+  }
+
+  // --- search (public): full-catalog posts + recipes matching the query, newest-first ---
+  // WP REST `?search=` covers title/excerpt/content for posts; recipe bodies live in ACF,
+  // so recipes match on title/excerpt only. Date order (not WP relevance) — relevance
+  // scores aren't comparable across the two post-type queries, and date matches the feed.
+  if (body.action === 'search') {
+    const query = String(body.query ?? '').trim();
+    if (query.length < 2) return json({ error: 'query too short' }, 400);
+    const perPage = Math.min(Math.max(body.perPage ?? 20, 1), 30);
+    const cacheKey = `search:${query.toLowerCase()}:${perPage}`;
+    const cached = cachedResponse(cacheKey);
+    if (cached) return cached;
+    const [posts, recipes] = await Promise.all([
+      fetchType('post', perPage, query),
+      fetchType('recipe', perPage, query),
+    ]);
     const articles = [...posts, ...recipes]
       .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
       .slice(0, perPage);
