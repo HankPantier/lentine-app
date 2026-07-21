@@ -57,6 +57,8 @@ android/
 # Never track uploads or secrets even inside whitelisted parents
 /wordpress/**/wp-content/uploads/**
 **/wp-config.php
+# Finder droppings re-exposed by the whitelists above
+/wordpress/**/.DS_Store
 
 # Filled Supabase bridge config holds the service-role key — never commit (the .example is tracked)
 /wordpress/**/wp-content/mu-plugins/aa-supabase-config.php
