@@ -201,7 +201,12 @@ export default function ArticleRoute() {
           accessibilityIgnoresInvertColors
         />
       ) : null}
-      <SeasonDoshaMeta season={summary.season} dosha={summary.dosha} style={{ marginBottom: 18 }} />
+      <SeasonDoshaMeta
+        season={summary.season}
+        dosha={summary.dosha}
+        background={colors.white}
+        style={{ marginBottom: 18 }}
+      />
 
       {summary.category ? <Eyebrow color={colors.blueBright}>{summary.category}</Eyebrow> : null}
       <Heading size={28} style={{ marginTop: 8 }}>

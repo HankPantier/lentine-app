@@ -1,4 +1,4 @@
-import { type StyleProp, StyleSheet, View, type ViewStyle } from 'react-native';
+import { type StyleProp, View, type ViewStyle } from 'react-native';
 import { titleCase } from '@/lib/format';
 import { colors, fg } from '@/theme/tokens';
 import { Text } from './Text';
@@ -19,18 +19,21 @@ function MetaField({ label, values }: { label: string; values: string[] }) {
 }
 
 /**
- * The website's recipe metadata band — "SEASON: Spring, Summer   DOSHA: Kapha, Pitta" — as a
- * taupe strip framed by a navy hairline, sitting under the hero/card image. Fields flow on
- * one line and wrap as whole units on narrow screens. Renders nothing when both are
- * empty/absent (posts, old cached payloads), so callers can place it unconditionally.
+ * The website's recipe metadata band — "SEASON: Spring, Summer   DOSHA: Kapha, Pitta" — a
+ * borderless strip docked under the hero/card image. Taupe by default (feed cards, on
+ * white); the reader passes white (band on taupe screen). Fields flow on one line and wrap
+ * as whole units on narrow screens. Renders nothing when both are empty/absent (posts, old
+ * cached payloads), so callers can place it unconditionally.
  */
 export function SeasonDoshaMeta({
   season,
   dosha,
+  background = colors.taupe,
   style,
 }: {
   season?: string[];
   dosha?: string[];
+  background?: string;
   style?: StyleProp<ViewStyle>;
 }) {
   const hasSeason = !!season?.length;
@@ -40,9 +43,7 @@ export function SeasonDoshaMeta({
     <View
       style={[
         {
-          backgroundColor: colors.taupe,
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor: colors.blue,
+          backgroundColor: background,
           paddingVertical: 10,
           paddingHorizontal: 14,
           flexDirection: 'row',
