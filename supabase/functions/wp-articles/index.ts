@@ -12,7 +12,8 @@
 //   { action: 'article', slug }       → tier-gated: the full body ONLY when the caller's Supabase
 //                                        subscription TIER permits it (see canUnlock).
 //
-// list/search/today responses are cached in warm-isolate memory for 60s; article never is.
+// list/search/today responses are cached in warm-isolate memory for 60s; search results are
+// additionally shared cross-isolate via wp_content_cache (SWR); article responses never are.
 //
 // Why this shape: the live WordPress site gates bodies server-side, so a full body needs an
 // authenticated WP request. Auth + entitlement live in Supabase, so we keep the WordPress
@@ -117,7 +118,7 @@ function adminClient() {
   return createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 }
 
-async function sharedCacheGet(key: string): Promise<{ src: ArticleSource; fresh: boolean } | null> {
+async function sharedCacheGet(key: string): Promise<{ payload: unknown; fresh: boolean } | null> {
   if (!SUPABASE_URL || !SERVICE_ROLE_KEY) return null;
   try {
     const { data } = await adminClient()
@@ -128,13 +129,13 @@ async function sharedCacheGet(key: string): Promise<{ src: ArticleSource; fresh:
     if (!data) return null;
     const age = Date.now() - new Date(data.fetched_at as string).getTime();
     if (age >= SHARED_CACHE_MAX_AGE_MS) return null;
-    return { src: data.payload as ArticleSource, fresh: age < SHARED_CACHE_FRESH_MS };
+    return { payload: data.payload, fresh: age < SHARED_CACHE_FRESH_MS };
   } catch {
     return null; // cache trouble must never break the request path
   }
 }
 
-async function sharedCachePut(key: string, src: ArticleSource): Promise<void> {
+async function sharedCachePut(key: string, src: unknown): Promise<void> {
   if (!SUPABASE_URL || !SERVICE_ROLE_KEY) return;
   try {
     await adminClient()
@@ -319,14 +320,46 @@ function readSeasons(post: any): string[] {
   return Array.isArray(s) ? s.map((x: unknown) => String(x).toLowerCase()) : [];
 }
 
+/**
+ * Only what toArticle() reads. Searches trim the response with scoped `_embed` + `_fields`
+ * (~half the payload of a full `_embed=1` and less origin assembly work — WP can't filter
+ * INSIDE `_embedded`, so the media object still arrives whole).
+ */
+const SEARCH_FIELDS =
+  'id,slug,title,excerpt,date,link,visibility,category,dosha,season,_links,_embedded';
+
 /** Fetch the most recent items of a post type (optionally matching `search`), normalized; [] on any WP error. */
 async function fetchType(type: ContentType, perPage: number, search?: string) {
   const base = type === 'recipe' ? 'recipe' : 'posts';
+  const embed = search ? `_embed=wp:featuredmedia,wp:term&_fields=${SEARCH_FIELDS}` : '_embed=1';
   const searchParam = search ? `&search=${encodeURIComponent(search)}` : '';
-  const res = await fetch(wpUrl(`${base}?_embed=1&per_page=${perPage}&orderby=date&order=desc${searchParam}`));
+  const res = await fetch(wpUrl(`${base}?${embed}&per_page=${perPage}&orderby=date&order=desc${searchParam}`));
   if (!res.ok) return [];
   const items = await res.json();
   return Array.isArray(items) ? items.map((p) => toArticle(p, type)) : [];
+}
+
+/**
+ * Full-catalog search at the WordPress origin: both post types in parallel, merged
+ * newest-first. 10 per type is plenty for a search surface and halves origin work.
+ */
+async function searchOrigin(query: string, perPage: number) {
+  const per = Math.min(perPage, 10);
+  const [posts, recipes] = await Promise.all([
+    fetchType('post', per, query),
+    fetchType('recipe', per, query),
+  ]);
+  return [...posts, ...recipes]
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+    .slice(0, perPage);
+}
+
+/** Re-run a search against WordPress and refresh the shared cache (background revalidation). */
+async function revalidateSearch(query: string, perPage: number, cacheKey: string): Promise<void> {
+  const articles = await searchOrigin(query, perPage);
+  // A transient WP failure yields [] here and would pin an empty result for the fresh
+  // window — tolerable for a search (heals on the next revalidation), unlike article bodies.
+  await sharedCachePut(cacheKey, { articles });
 }
 
 /**
@@ -387,6 +420,9 @@ Deno.serve(async (req) => {
   // WP REST `?search=` covers title/excerpt/content for posts; recipe bodies live in ACF,
   // so recipes match on title/excerpt only. Date order (not WP relevance) — relevance
   // scores aren't comparable across the two post-type queries, and date matches the feed.
+  // Fresh origin searches cost seconds, so results layer three caches: warm isolate (60s)
+  // → shared cross-isolate table (SWR: serve <10min fresh, serve-stale + background
+  // revalidate up to 24h) → origin. Payloads are public summaries — safe to share.
   if (body.action === 'search') {
     const query = String(body.query ?? '').trim();
     if (query.length < 2) return json({ error: 'query too short' }, 400);
@@ -394,13 +430,13 @@ Deno.serve(async (req) => {
     const cacheKey = `search:${query.toLowerCase()}:${perPage}`;
     const cached = cachedResponse(cacheKey);
     if (cached) return cached;
-    const [posts, recipes] = await Promise.all([
-      fetchType('post', perPage, query),
-      fetchType('recipe', perPage, query),
-    ]);
-    const articles = [...posts, ...recipes]
-      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
-      .slice(0, perPage);
+    const shared = await sharedCacheGet(cacheKey);
+    if (shared) {
+      if (!shared.fresh) inBackground(revalidateSearch(query, perPage, cacheKey));
+      return cacheAndRespond(cacheKey, shared.payload);
+    }
+    const articles = await searchOrigin(query, perPage);
+    inBackground(sharedCachePut(cacheKey, { articles }));
     return cacheAndRespond(cacheKey, { articles });
   }
 
@@ -448,9 +484,10 @@ Deno.serve(async (req) => {
       resolveTier(authHeader),
     ]);
     if (shared) {
-      articleSourceCache.set(body.slug, { at: Date.now(), src: shared.src });
+      const src = shared.payload as ArticleSource;
+      articleSourceCache.set(body.slug, { at: Date.now(), src });
       if (!shared.fresh) inBackground(revalidateArticle(body.slug));
-      return json({ article: gateArticle(shared.src, tier) });
+      return json({ article: gateArticle(src, tier) });
     }
 
     // True miss: everything the response could need runs CONCURRENTLY. The recipe body is

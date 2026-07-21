@@ -80,12 +80,16 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/
 interface SearchMockOptions {
   /** Response per search call, by call index (last repeats). Default: one page of [SEARCH_HIT]. */
   responses?: { status: number; articles?: typeof SEARCH_HIT[] }[];
+  /** Hold search responses until the returned release() is called (skeleton-state tests). */
+  hold?: boolean;
 }
 
 /** Mock the edge function; returns a live view of the search calls it received. */
 async function mockArticles(page: Page, opts: SearchMockOptions = {}) {
   const searchCalls: { query: string; perPage: number }[] = [];
   const responses = opts.responses ?? [{ status: 200, articles: [SEARCH_HIT] }];
+  let release: () => void = () => {};
+  const gate = opts.hold ? new Promise<void>((r) => (release = r)) : null;
   await page.route('**/functions/v1/wp-articles', async (route) => {
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 200, headers: CORS, body: 'ok' });
     const body = JSON.parse(route.request().postData() || '{}');
@@ -94,6 +98,7 @@ async function mockArticles(page: Page, opts: SearchMockOptions = {}) {
     }
     if (body.action === 'search') {
       searchCalls.push({ query: body.query, perPage: body.perPage });
+      if (gate) await gate;
       const res = responses[Math.min(searchCalls.length - 1, responses.length - 1)];
       if (res.status !== 200) {
         return route.fulfill({ status: res.status, headers: CORS, body: JSON.stringify({ error: 'down' }) });
@@ -102,7 +107,7 @@ async function mockArticles(page: Page, opts: SearchMockOptions = {}) {
     }
     return route.fulfill({ status: 200, headers: CORS, body: JSON.stringify({ article: null }) });
   });
-  return searchCalls;
+  return { searchCalls, release: () => release() };
 }
 
 function searchInput(page: Page) {
@@ -166,9 +171,43 @@ test('a failed search shows a retry state, and retrying recovers', async ({ page
   await expect(page.getByText('Couldn’t search right now.')).toHaveCount(0);
 });
 
+test('while searching, skeletons show and already-loaded matches paint instantly', async ({ page }) => {
+  await seed(page);
+  const { release } = await mockArticles(page, { hold: true });
+  await page.goto('/home');
+  await expect(page.getByText(RECIPE.title, { exact: true })).toBeVisible();
+
+  // "kitchari" matches the loaded RECIPE — it must appear as an instant local result
+  // (under "From the latest") while the full-catalog search is still in flight.
+  await searchInput(page).fill('kitchari');
+  await expect(page.getByText('Searching the whole catalog…')).toBeVisible();
+  await expect(page.getByText('From the latest')).toBeVisible();
+  await expect(page.getByText(RECIPE.title, { exact: true })).toBeVisible();
+  await expect(page.getByText(SEARCH_HIT.title, { exact: true })).toHaveCount(0);
+
+  release();
+  await expect(page.getByText(SEARCH_HIT.title, { exact: true })).toBeVisible();
+  await expect(page.getByText('Searching the whole catalog…')).toHaveCount(0);
+  await expect(page.getByText('From the latest')).toHaveCount(0);
+});
+
+test('a query with no loaded matches shows only skeletons while in flight', async ({ page }) => {
+  await seed(page);
+  const { release } = await mockArticles(page, { hold: true });
+  await page.goto('/home');
+  await expect(page.getByText(RECIPE.title, { exact: true })).toBeVisible();
+
+  await searchInput(page).fill('chai');
+  await expect(page.getByText('Searching the whole catalog…')).toBeVisible();
+  await expect(page.getByText('From the latest')).toHaveCount(0);
+
+  release();
+  await expect(page.getByText(SEARCH_HIT.title, { exact: true })).toBeVisible();
+});
+
 test('keystrokes are debounced into a single request for the final query', async ({ page }) => {
   await seed(page);
-  const searchCalls = await mockArticles(page);
+  const { searchCalls } = await mockArticles(page);
   await page.goto('/home');
   await expect(page.getByText(RECIPE.title, { exact: true })).toBeVisible();
 
@@ -181,7 +220,7 @@ test('keystrokes are debounced into a single request for the final query', async
 
 test('a one-character query never fires a request', async ({ page }) => {
   await seed(page);
-  const searchCalls = await mockArticles(page);
+  const { searchCalls } = await mockArticles(page);
   await page.goto('/home');
   await expect(page.getByText(RECIPE.title, { exact: true })).toBeVisible();
 

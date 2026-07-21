@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { AppHeader, ArticleCard, Button, Eyebrow, Heading, Screen, Text } from '@/components';
 import { DOSHA_CONTENT } from '@/content/dosha-content';
 import { setArticlePreview } from '@/lib/article-preview';
@@ -9,7 +9,7 @@ import { canAccess, entitledTier } from '@/lib/entitlement';
 import { applyFeedFilter, type FeedFilter, feedCategories } from '@/lib/feed-filters';
 import { sinkOutOfSeason, splitByDosha } from '@/lib/feed-sections';
 import { formatLongDate } from '@/lib/format';
-import { normalizeQuery, SEARCH_DEBOUNCE_MS } from '@/lib/search';
+import { matchesQuery, normalizeQuery, SEARCH_DEBOUNCE_MS } from '@/lib/search';
 import { currentSeason } from '@/lib/season';
 import { TIER_NAME } from '@/onboarding/pricing';
 import { useOnboarding } from '@/onboarding/state';
@@ -164,6 +164,36 @@ function SearchBar({
   );
 }
 
+/**
+ * Placeholder card pulsing while a search is in flight — mirrors ArticleCard's default
+ * layout (image block, meta line, headline, excerpt) so results land without a reflow.
+ */
+function SkeletonCard() {
+  const pulse = useRef(new Animated.Value(0.55)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 700, useNativeDriver: Platform.OS !== 'web' }),
+        Animated.timing(pulse, { toValue: 0.55, duration: 700, useNativeDriver: Platform.OS !== 'web' }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+  return (
+    <Animated.View
+      style={{ opacity: pulse, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray }}
+    >
+      <View style={{ height: 180, backgroundColor: colors.gray }} />
+      <View style={{ padding: 18 }}>
+        <View style={{ height: 10, width: 110, marginBottom: 12, backgroundColor: colors.gray }} />
+        <View style={{ height: 16, width: '78%', marginBottom: 8, backgroundColor: colors.gray }} />
+        <View style={{ height: 12, width: '92%', backgroundColor: colors.gray }} />
+      </View>
+    </Animated.View>
+  );
+}
+
 export default function HomeRoute() {
   const router = useRouter();
   const { state, update } = useOnboarding();
@@ -246,6 +276,13 @@ export default function HomeRoute() {
     };
   }, [debouncedQuery, searchAttempt]);
   const searchMode = normalizeQuery(rawQuery) !== null;
+  // Instant results: matches from the already-loaded feed paint the moment the query is
+  // valid — before the debounce even fires — while the full catalog is searched server-side.
+  const localMatches = useMemo(() => {
+    const q = normalizeQuery(rawQuery);
+    if (q === null || !articles) return [];
+    return byDateDesc(articles.filter((a) => matchesQuery(a, q)));
+  }, [rawQuery, articles]);
   // The keyboard's Search key skips the debounce wait.
   const submitSearch = () => {
     const q = normalizeQuery(rawQuery);
@@ -401,9 +438,33 @@ export default function HomeRoute() {
                   />
                 </View>
               ) : results === null ? (
-                <View style={{ paddingVertical: 24, alignItems: 'center' }}>
-                  <ActivityIndicator color={colors.blue} />
-                </View>
+                <>
+                  {localMatches.length > 0 ? (
+                    <>
+                      <Eyebrow color={colors.blueBright} style={{ marginBottom: 8 }}>
+                        From the latest
+                      </Eyebrow>
+                      <View style={{ gap: 14, marginBottom: 16 }}>
+                        {localMatches.map((a) => (
+                          <ArticleCard
+                            key={a.id}
+                            article={a}
+                            locked={!canAccess(a, tier)}
+                            onPress={() => openArticle(a)}
+                          />
+                        ))}
+                      </View>
+                    </>
+                  ) : null}
+                  <Text italic style={{ color: fg.tertiary, fontSize: 12, marginBottom: 8 }}>
+                    Searching the whole catalog…
+                  </Text>
+                  <View style={{ gap: 14 }}>
+                    {Array.from({ length: localMatches.length > 0 ? 1 : 3 }, (_, i) => (
+                      <SkeletonCard key={i} />
+                    ))}
+                  </View>
+                </>
               ) : results.length === 0 ? (
                 <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18 }}>
                   <Text style={{ color: fg.secondary, fontSize: 14, lineHeight: 21 }}>

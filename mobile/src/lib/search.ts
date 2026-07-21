@@ -15,3 +15,20 @@ export function normalizeQuery(raw: string): string | null {
   const q = raw.trim().replace(/\s+/g, ' ');
   return q.length >= MIN_QUERY_LEN ? q : null;
 }
+
+/**
+ * Whether an already-loaded feed item matches the query (title/excerpt/category,
+ * case-insensitive substring). Drives the instant "From the latest" results shown
+ * while the full-catalog search is still in flight.
+ */
+export function matchesQuery(
+  a: { title: string; excerpt: string; category: string | null },
+  query: string,
+): boolean {
+  const q = query.toLowerCase();
+  return (
+    a.title.toLowerCase().includes(q) ||
+    a.excerpt.toLowerCase().includes(q) ||
+    (a.category ?? '').toLowerCase().includes(q)
+  );
+}
