@@ -17,6 +17,16 @@ npm test           # jest — quiz scoring + data-integrity tests
 npx tsc --noEmit   # typecheck
 ```
 
+## Web build / deploy (Vercel)
+
+```bash
+npm run build      # expo export --platform web  →  dist/
+```
+
+Deployed to Vercel from this `mobile/` subdirectory (Root Directory = `mobile`). Build config
+lives in `vercel.json`; `EXPO_PUBLIC_SUPABASE_*` are set as Vercel project env vars (needed at
+export time — the static render reads them during prerender).
+
 ## Layout
 
 ```
