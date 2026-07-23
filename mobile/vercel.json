@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "echo \"EXPO_PUBLIC_SUPABASE_URL=$EXPO_PUBLIC_SUPABASE_URL\" > .env && echo \"EXPO_PUBLIC_SUPABASE_ANON_KEY=$EXPO_PUBLIC_SUPABASE_ANON_KEY\" >> .env && npx expo export --platform web",
+  "buildCommand": "echo \"[diag] URL_len=${#EXPO_PUBLIC_SUPABASE_URL} KEY_len=${#EXPO_PUBLIC_SUPABASE_ANON_KEY} expo_public_count=$(env | grep -c '^EXPO_PUBLIC_') all_supabase_keys=[$(env | grep -io '^[A-Z_]*SUPABASE[A-Z_]*' | tr '\\n' ',')]\" && echo \"EXPO_PUBLIC_SUPABASE_URL=$EXPO_PUBLIC_SUPABASE_URL\" > .env && echo \"EXPO_PUBLIC_SUPABASE_ANON_KEY=$EXPO_PUBLIC_SUPABASE_ANON_KEY\" >> .env && npx expo export --platform web",
   "outputDirectory": "dist",
   "framework": null,
   "cleanUrls": true,
