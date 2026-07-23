@@ -10,7 +10,7 @@ the App Store + Play Store. Each item is tagged with **where** it belongs:
 
 Status legend: `[ ]` open · `[x]` done · `[~]` partially done.
 
-_Last updated: 2026-07-23._
+_Last updated: 2026-07-23 (added SMTP setup steps in §3)._
 
 ---
 
@@ -41,8 +41,55 @@ in-app portal work:
 
 ## 3. Emails / SMTP — [STAGING CONFIG] now, critical [GO-LIVE]
 
-- [ ] Configure **SMTP in Supabase** — password resets + member invites can't currently send. Draft the email copy.
-- [ ] Decide the **confirm-email** policy (recovery UI already ships).
+**Why:** Supabase's default sender (`noreply@mail.app.supabase.io`) is throttled to only a few
+messages/hour project-wide and isn't meant for production — repeated signup/resend testing hits
+the cap and emails silently stop arriving. Custom SMTP removes the throttle, delivers reliably,
+and sends from the Lentine domain. Do it in staging now; the same provider carries to production.
+
+### 3a. Interim testing unblock (no SMTP needed)
+- [ ] While SMTP is pending, either **manually confirm** test users (Supabase → Authentication →
+      Users → user → confirm email) or **turn off "Confirm email"** (Auth → Providers → Email) so
+      `signUp` returns a session directly. Flip confirm back on once SMTP is live.
+
+### 3b. Stand up SMTP with Resend (recommended — fastest path)
+Resend has a first-class Supabase integration and simple DNS. (SendGrid / Postmark / AWS SES all
+work too — same Supabase fields, different host/creds.)
+
+- [ ] **Create a Resend account** at resend.com.
+- [ ] **Add the sending domain.** Resend → Domains → Add Domain. Use a **subdomain** of the brand
+      domain, e.g. `mail.lentinealexis.com` or `send.lentinealexis.com` (keeps the root domain's
+      reputation isolated; recommended over sending straight from `lentinealexis.com`).
+- [ ] **Add the DNS records** Resend shows (at the domain's DNS host / WP Engine):
+      **SPF** (TXT), **DKIM** (CNAME/TXT), and the **MX** for the subdomain. Optionally add
+      **DMARC** (`_dmarc` TXT, start with `p=none`). Wait for Resend to show **Verified** (minutes
+      to a few hours depending on DNS propagation).
+- [ ] **Create a Resend API key** (Resend → API Keys → Create, "Sending access").
+- [ ] **Configure Supabase custom SMTP:** Supabase → Project Settings → **Authentication → SMTP
+      Settings** → enable **Custom SMTP** and enter:
+      - Host: `smtp.resend.com`
+      - Port: `465` (SSL) or `587` (STARTTLS)
+      - Username: `resend`
+      - Password: **the Resend API key**
+      - Sender email: e.g. `noreply@mail.lentinealexis.com` (must be on the verified domain)
+      - Sender name: `Lentine Alexis`
+- [ ] **Raise the Auth email rate limits** (Supabase → Authentication → Rate Limits) now that a
+      real provider is in place — the tiny default cap no longer applies once custom SMTP is on.
+- [ ] **Send a test:** trigger a fresh signup (or Supabase's "send test email") and confirm it
+      arrives from the Lentine sender, not `mail.app.supabase.io`.
+
+### 3c. Templates & copy
+- [ ] Customize the Auth email templates (Supabase → Authentication → **Email Templates**):
+      Confirm signup, Magic link, Reset password, Invite — brand the copy + sender name.
+- [ ] Draft the member-facing copy for **password reset** and **go-live invite** emails.
+
+### 3d. Confirm-email policy
+- [ ] Decide the **confirm-email** policy (recovery/confirm UI already ships). Keep it **on** once
+      SMTP is reliable; the signup flow's `emailRedirectTo` (commit `1094c5f`) points confirm links
+      at the app origin, and the Supabase **Site URL** should be set to `https://lentine-app.vercel.app`.
+
+### 3e. Production
+- [ ] **[GO-LIVE]** Same Resend domain works for prod; just point the **prod** Supabase project's
+      SMTP + Site URL at the production web home, and confirm the sending domain is verified there too.
 
 ## 4. App Store / native build infrastructure — [INFRA — ANYTIME], required before submission
 
