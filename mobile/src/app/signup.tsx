@@ -81,9 +81,16 @@ export default function SignupRoute() {
     setBusy(true);
     setError(null);
     setNotice(null);
+    // Land the confirmation link on wherever the user signed up (Vercel/web origin, or the
+    // lentine:// deep link on native) rather than Supabase's single Site URL default.
+    const emailRedirectTo =
+      Platform.OS === 'web' && typeof window !== 'undefined'
+        ? `${window.location.origin}/`
+        : Linking.createURL('/');
     const { data, error: authErr } = await supabase.auth.signUp({
       email: state.email.trim(),
       password: state.password,
+      options: { emailRedirectTo },
     });
     if (authErr) {
       setError(authErr.message);
