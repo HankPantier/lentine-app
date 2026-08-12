@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lentine Alexis — Recipe Reader (revised)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Mulish:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Dancing+Script:wght@600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --navy:        #000033;
+    --taupe:       #f4f0ec;
+    --white:       #ffffff;
+    --gray:        #E7E7E7;
+    --blue-bright: #0099B1;
+    --teal:        #3FBECC;
+    --orange:      #FF9700;
+
+    --fg-secondary: rgba(0,0,51,0.72);
+    --fg-tertiary:  rgba(0,0,51,0.50);
+
+    --radius-sharp: 0px;
+    --radius-button: 5px;
+
+    --sans: 'Mulish', -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --script: 'Dancing Script', cursive;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: #d8d2ca;
+    font-family: var(--sans);
+    color: var(--navy);
+    -webkit-font-smoothing: antialiased;
+    padding: 32px 16px;
+  }
+
+  .screen {
+    max-width: 430px;
+    margin: 0 auto;
+    background: var(--taupe);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.18);
+    overflow: hidden;
+  }
+
+  .appheader {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 24px 4px;
+  }
+  .appheader .back { font-size: 22px; line-height: 1; color: var(--navy); }
+  .appheader .wordmark { font-family: var(--script); font-size: 26px; color: var(--navy); }
+  .appheader .right { display: flex; align-items: center; gap: 14px; }
+  .appheader .heart { font-size: 20px; color: var(--navy); }
+  .appheader .avatar {
+    width: 30px; height: 30px; border-radius: 999px; background: var(--teal);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--navy); font-weight: 700; font-size: 13px;
+  }
+
+  .hero {
+    height: 200px;
+    background:
+      radial-gradient(120% 120% at 30% 20%, #e7c9a0 0%, #cf9f6b 45%, #a9743f 100%);
+    position: relative;
+  }
+  .hero::after {
+    content: "recipe photo";
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.55); font-style: italic; letter-spacing: 1px; font-size: 13px;
+  }
+
+  .meta-band {
+    background: var(--white);
+    display: flex; gap: 22px; padding: 12px 24px;
+    font-size: 11px; letter-spacing: 0.5px;
+  }
+  .meta-band .label { color: var(--fg-tertiary); text-transform: uppercase; }
+  .meta-band .val { color: var(--navy); }
+
+  .content { padding: 18px 24px 40px; }
+
+  .eyebrow {
+    text-transform: uppercase; letter-spacing: 0.5px; font-size: 12px; font-weight: 600;
+  }
+  .eyebrow.category { color: var(--blue-bright); }
+
+  .title {
+    font-weight: 700; font-size: 28px; line-height: 34px; margin: 8px 0 0;
+  }
+  .byline {
+    display: flex; align-items: center; justify-content: space-between;
+    margin: 8px 0 16px;
+  }
+  .byline .date { color: var(--fg-tertiary); font-size: 13px; }
+  .byline .heart { font-size: 22px; color: var(--navy); }
+
+  /* CTA — the one orange element on this screen (per brand rule: one important CTA per view) */
+  .btn-cta {
+    display: inline-block; border: none; border-radius: var(--radius-button);
+    background: var(--orange); color: var(--white);
+    padding: 10px 20px; font-size: 13px; letter-spacing: 0.5px;
+    text-transform: uppercase; font-style: italic; font-weight: 700;
+    margin-bottom: 18px; cursor: pointer;
+  }
+
+  .rnrh { font-size: 16px; line-height: 26px; color: var(--navy); }
+  .rnrh p { margin: 6px 0; }
+  .rnrh a { color: var(--blue-bright); text-decoration: none; }
+  .rnrh strong { font-weight: 700; }
+  .rnrh em { font-style: italic; }
+
+  /* Section headers: eyebrow caps + navy structural rule (the brand's documented h3-underline pattern) */
+  .rnrh h3 {
+    font-weight: 700; font-size: 12px; line-height: 16px;
+    text-transform: uppercase; letter-spacing: 0.06em; color: var(--blue-bright);
+    margin: 0 0 12px; padding-bottom: 10px;
+    border-bottom: 1px solid var(--navy);
+  }
+  .rnrh h4 { font-weight: 600; font-size: 15px; line-height: 20px; margin: 0; }
+  .rnrh ul, .rnrh ol { margin: 4px 0 0; padding-left: 0; list-style: none; }
+
+  /* Signpost between intro and the recipe proper — teal top edge marks the hand-off point */
+  .signpost {
+    border-top: 2px solid var(--teal);
+    margin-top: 12px; padding-top: 16px;
+  }
+  .signpost .eyebrow { color: var(--blue-bright); }
+  .signpost .dish { font-weight: 700; font-size: 24px; line-height: 30px; margin: 6px 0 8px; }
+
+  .recipe-section {
+    background: var(--white);
+    border: 1px solid var(--gray);
+    border-radius: var(--radius-sharp);
+    padding: 18px 18px 20px;
+    margin-bottom: 14px;
+  }
+  .recipe-section > p:first-of-type { margin-top: 0; }
+
+  /* Flavor notes — label/value pairs in a two-column flex row (no CSS grid; RN-safe) */
+  .taste-grid { display: flex; flex-wrap: wrap; margin-top: 14px; }
+  .taste-item {
+    flex: 0 0 50%; padding: 8px 0;
+  }
+  .taste-item:nth-child(n+3) { border-top: 1px solid var(--gray); }
+  .taste-item:nth-child(odd) { padding-right: 10px; }
+  .t-label {
+    display: block; text-transform: uppercase; letter-spacing: 0.05em;
+    font-size: 10px; font-weight: 700; color: var(--blue-bright); margin-bottom: 3px;
+  }
+  .t-value { display: block; font-size: 14px; line-height: 19px; color: var(--navy); }
+
+  /* Ingredients — amount column aligned against item text via flex rows, not a bullet list */
+  .ing-heading {
+    text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px; font-weight: 700;
+    color: var(--fg-tertiary); margin: 16px 0 6px;
+  }
+  .ing-heading:first-of-type { margin-top: 4px; }
+  .ing-row {
+    display: flex; align-items: baseline; gap: 12px;
+    padding: 7px 0; border-bottom: 1px solid var(--gray);
+  }
+  .ing-row:last-child { border-bottom: none; }
+  .ing-amt {
+    flex: 0 0 58px; text-align: right; font-weight: 700; font-size: 14px; color: var(--navy);
+  }
+  .ing-item { flex: 1; font-size: 15px; line-height: 20px; color: var(--navy); }
+
+  /* Instructions — numbered badge + headline row, paragraph indented to align under the headline */
+  .step { margin: 0 0 16px; }
+  .step:last-child { margin-bottom: 0; }
+  .step-head { display: flex; align-items: center; gap: 10px; }
+  .step-num {
+    flex: 0 0 26px; width: 26px; height: 26px; border-radius: 999px;
+    border: 1px solid var(--navy); display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: var(--navy);
+  }
+  .step p { margin: 6px 0 0; padding-left: 36px; }
+</style>
+</head>
+<body>
+  <div class="screen">
+    <div class="appheader">
+      <span class="back">‹</span>
+      <span class="wordmark">Lentine Alexis</span>
+      <span class="right"><span class="heart">♡</span><span class="avatar">A</span></span>
+    </div>
+
+    <div class="hero"></div>
+
+    <div class="meta-band">
+      <span><span class="label">Season:</span> <span class="val">Fall, Winter</span></span>
+      <span><span class="label">Dosha:</span> <span class="val">Vata, Kapha</span></span>
+    </div>
+
+    <div class="content">
+      <div class="eyebrow category">Breakfast</div>
+      <h1 class="title">Golden Spiced Oat + Almond Breakfast Cake</h1>
+      <div class="byline"><span class="date">November 12, 2026</span><span class="heart">♡</span></div>
+
+      <button class="btn-cta">Jump to Recipe</button>
+
+      <div class="rnrh intro">
+        <p>There’s a particular grey that settles over late autumn mornings — the light thin, the
+          air sharp, the body asking to slow down. This is the cake I make when I want breakfast to
+          feel like a small act of grounding rather than a rush out the door.</p>
+        <p>Warm oats, toasted almond, and a generous hand of cardamom and cinnamon make it deeply
+          <em>vata-</em> and <em>kapha-</em>friendly: nourishing, a little sweet, never heavy. It
+          keeps for three days and only gets better with a smear of ghee.</p>
+      </div>
+
+      <div class="signpost">
+        <div class="eyebrow">The Recipe</div>
+        <div class="dish">Golden Spiced Oat + Almond Breakfast Cake</div>
+      </div>
+
+      <div class="recipe-section rnrh">
+        <h3>Recipe Notes</h3>
+        <p>Make it your own: swap the almonds for toasted walnuts in deep winter, and fold in a
+          grated apple if you want extra moisture. Gluten-free oats work perfectly.</p>
+      </div>
+
+      <div class="recipe-section rnrh">
+        <h3>Flavor Notes</h3>
+        <p>Warming and grounding, with a gentle sweetness that settles rather than spikes.</p>
+        <div class="taste-grid">
+          <div class="taste-item"><span class="t-label">Sweet</span><span class="t-value">maple, oat, almond</span></div>
+          <div class="taste-item"><span class="t-label">Salty</span><span class="t-value">a pinch, to lift</span></div>
+          <div class="taste-item"><span class="t-label">Sour</span><span class="t-value">N/A</span></div>
+          <div class="taste-item"><span class="t-label">Bitter</span><span class="t-value">toasted spice</span></div>
+          <div class="taste-item"><span class="t-label">Astringent</span><span class="t-value">N/A</span></div>
+          <div class="taste-item"><span class="t-label">Pungent</span><span class="t-value">cardamom, ginger</span></div>
+        </div>
+      </div>
+
+      <div class="recipe-section rnrh">
+        <h3>Ingredients</h3>
+        <div class="ing-heading">For the cake</div>
+        <div class="ing-row"><span class="ing-amt">2 cups</span><span class="ing-item">rolled oats</span></div>
+        <div class="ing-row"><span class="ing-amt">1 cup</span><span class="ing-item">almond flour</span></div>
+        <div class="ing-row"><span class="ing-amt">2 tsp</span><span class="ing-item">ground cardamom</span></div>
+        <div class="ing-row"><span class="ing-amt">1 tsp</span><span class="ing-item">cinnamon</span></div>
+        <div class="ing-row"><span class="ing-amt">½ tsp</span><span class="ing-item">ground ginger</span></div>
+        <div class="ing-row"><span class="ing-amt">¼ tsp</span><span class="ing-item">fine sea salt</span></div>
+        <div class="ing-row"><span class="ing-amt">2</span><span class="ing-item">eggs (or 2 flax eggs)</span></div>
+        <div class="ing-row"><span class="ing-amt">⅓ cup</span><span class="ing-item">maple syrup</span></div>
+        <div class="ing-row"><span class="ing-amt">¼ cup</span><span class="ing-item">melted ghee, plus more to serve</span></div>
+        <div class="ing-row"><span class="ing-amt">¾ cup</span><span class="ing-item">warm milk of choice</span></div>
+        <div class="ing-heading">For the topping</div>
+        <div class="ing-row"><span class="ing-amt">⅓ cup</span><span class="ing-item">sliced almonds</span></div>
+        <div class="ing-row"><span class="ing-amt">1 tbsp</span><span class="ing-item">maple syrup</span></div>
+        <div class="ing-row"><span class="ing-amt">—</span><span class="ing-item">flaky salt, to finish</span></div>
+      </div>
+
+      <div class="recipe-section rnrh">
+        <h3>Instructions</h3>
+        <div class="step">
+          <div class="step-head"><span class="step-num">1</span><h4>Prep</h4></div>
+          <p>Heat the oven to 350°F and line an 8-inch square pan. Warm the milk and ghee together
+            until just loose.</p>
+        </div>
+        <div class="step">
+          <div class="step-head"><span class="step-num">2</span><h4>Mix</h4></div>
+          <p>Whisk the oats, almond flour, spices, and salt. In a second bowl beat the eggs, maple,
+            ghee, and milk, then fold the wet into the dry until just combined.</p>
+        </div>
+        <div class="step">
+          <div class="step-head"><span class="step-num">3</span><h4>Top + bake</h4></div>
+          <p>Spread into the pan, scatter the almonds, drizzle with maple, and finish with flaky
+            salt. Bake 28–32 minutes until the center springs back.</p>
+        </div>
+        <div class="step">
+          <div class="step-head"><span class="step-num">4</span><h4>Serve</h4></div>
+          <p>Cool 10 minutes, cut into squares, and serve warm with an extra smear of ghee.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
