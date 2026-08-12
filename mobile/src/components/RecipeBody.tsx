@@ -23,6 +23,8 @@ const PROSE_TAGS: MixedStyleRecord = {
   ul: { marginTop: 4, marginBottom: 8 },
   ol: { marginTop: 4, marginBottom: 8 },
   li: { lineHeight: 23 },
+  // Give inline photos breathing room — bottom is 2x the top.
+  img: { marginTop: 16, marginBottom: 32 },
 };
 
 function Prose({ html, width }: { html: string; width: number }) {

@@ -37,6 +37,8 @@ const TAGS_STYLES: MixedStyleRecord = {
   strong: { fontFamily: fonts.bold },
   em: { fontFamily: fonts.italic },
   li: { lineHeight: 26 },
+  // Give inline photos breathing room — bottom is 2x the top.
+  img: { marginTop: 16, marginBottom: 32 },
 };
 
 // Recipe section panels: each assembled <h3> section (Ingredients, Instructions, Notes…) is
