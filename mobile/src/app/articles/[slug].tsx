@@ -10,10 +10,10 @@ import {
   View,
 } from 'react-native';
 import RenderHtml, { type MixedStyleRecord } from 'react-native-render-html';
-import { AppHeader, Button, Eyebrow, FavoriteButton, Heading, JumpToRecipePill, Screen, SeasonDoshaMeta, Text } from '@/components';
+import { AppHeader, Button, Eyebrow, FavoriteButton, Heading, JumpToRecipePill, RecipeBody, Screen, SeasonDoshaMeta, Text } from '@/components';
 import { boxRecipeSections, splitAtIngredients, tidyArticleHtml } from '@/lib/article-html';
 import { getArticlePreview } from '@/lib/article-preview';
-import { type Article, type ArticleDetail, fetchArticle } from '@/lib/articles';
+import { type Article, type ArticleDetail, type RecipeStructured, fetchArticle } from '@/lib/articles';
 import { canAccess, entitledTier } from '@/lib/entitlement';
 import { isFavorited, toFavoriteEntry, toggleFavorite } from '@/lib/favorites-encoding';
 import { formatLongDate } from '@/lib/format';
@@ -144,6 +144,16 @@ export default function ArticleRoute() {
     () => (tidied == null ? '' : isRecipe ? boxRecipeSections(tidied) : tidied),
     [tidied, isRecipe],
   );
+  // Preferred path: an unlocked recipe with structured ACF data renders natively (RecipeBody).
+  // Recipes without it (old cache / un-updated WP) fall back to the boxed HTML above.
+  const structured = useMemo<RecipeStructured | null>(
+    () => (detail && !detail.locked && isRecipe ? (detail.structured ?? null) : null),
+    [detail, isRecipe],
+  );
+  const hasStructured = !!(
+    structured &&
+    (structured.ingredient_sections?.length || structured.instructions?.length)
+  );
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, layoutMeasurement } = e.nativeEvent;
     setScrolled(contentOffset.y > PILL_APPEAR_OFFSET);
@@ -203,7 +213,8 @@ export default function ArticleRoute() {
   // server response stays authoritative and simply confirms (or corrects) it on arrival.
   const predictedLocked = !canAccess(summary, entitledTier(state.subscription));
 
-  const jumpReady = parts != null && markerY != null && detail != null && !detail.locked && !!detail.contentHtml;
+  const jumpReady =
+    (hasStructured || parts != null) && markerY != null && detail != null && !detail.locked && !!detail.contentHtml;
   const hasMetaBand = !!(summary.season?.length || summary.dosha?.length);
 
   // Favorites: optimistic — local state is the UI's source of truth; the Supabase write is
@@ -222,7 +233,7 @@ export default function ArticleRoute() {
   return (
     <Screen
       scrollRef={scrollRef}
-      onScroll={parts ? onScroll : undefined}
+      onScroll={hasStructured || parts ? onScroll : undefined}
       overlay={
         // Hidden at the top (the inline header button covers that stretch), gone at the recipe.
         jumpReady ? <JumpToRecipePill visible={scrolled && !pastRecipe} onPress={jumpToRecipe} /> : null
@@ -268,7 +279,7 @@ export default function ArticleRoute() {
       {jumpReady ? (
         <Button
           label="Jump to Recipe"
-          variant="outline"
+          variant="important"
           size="sm"
           onPress={jumpToRecipe}
           style={{ marginBottom: 18, alignSelf: 'flex-start' }}
@@ -291,6 +302,37 @@ export default function ArticleRoute() {
           <Text style={{ color: fg.secondary, fontSize: 16, lineHeight: 25 }}>{detail.excerpt}</Text>
           <MembersOnlyPanel item={detail} />
         </View>
+      ) : hasStructured && structured ? (
+        <>
+          {structured.intro ? (
+            <RenderHtml
+              contentWidth={contentWidth}
+              source={{ html: tidyArticleHtml(structured.intro) }}
+              baseStyle={BASE_STYLE}
+              systemFonts={SYSTEM_FONTS}
+              tagsStyles={TAGS_STYLES}
+              enableExperimentalMarginCollapsing
+            />
+          ) : null}
+          {/* Marker wraps the signpost + native recipe, so "Jump to Recipe" lands on "The Recipe". */}
+          <View onLayout={(e) => setMarkerY(e.nativeEvent.layout.y)}>
+            <View
+              style={{
+                borderTopWidth: 2,
+                borderTopColor: colors.blueLight,
+                marginTop: 8,
+                paddingTop: 18,
+                marginBottom: 16,
+              }}
+            >
+              <Eyebrow color={colors.blueBright}>The Recipe</Eyebrow>
+              <Heading size={24} style={{ marginTop: 6, marginBottom: 8 }}>
+                {summary.title}
+              </Heading>
+            </View>
+            <RecipeBody structured={structured} contentWidth={contentWidth} />
+          </View>
+        </>
       ) : parts ? (
         <>
           {parts.intro ? (
@@ -310,8 +352,8 @@ export default function ArticleRoute() {
           <View onLayout={(e) => setMarkerY(e.nativeEvent.layout.y)}>
             <View
               style={{
-                borderTopWidth: 1,
-                borderTopColor: colors.gray,
+                borderTopWidth: 2,
+                borderTopColor: colors.blueLight,
                 marginTop: 8,
                 paddingTop: 18,
                 marginBottom: 4,

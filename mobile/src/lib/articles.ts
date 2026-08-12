@@ -21,10 +21,46 @@ export interface Article {
   season?: string[];
 }
 
+/** One flavor row (Sweet/Salty/…) with its value ('N/A' when unset). */
+export interface RecipeTaste {
+  label: string;
+  value: string;
+}
+/** One ingredient: the amount column ("2 cups") and the item text ("rolled oats"). */
+export interface RecipeIngredientItem {
+  amount: string;
+  item: string;
+}
+/** A titled group of ingredients (headline may be ''). */
+export interface RecipeIngredientSection {
+  headline: string;
+  items: RecipeIngredientItem[];
+}
+/** One numbered instruction step (headline may be ''; content is HTML). */
+export interface RecipeStep {
+  headline: string;
+  content: string;
+}
+/**
+ * Structured recipe data (from the WordPress ACF fields) so the app can render ingredients,
+ * steps, and flavor notes as native components with precise layout. Prose fields (intro, notes,
+ * flavor.notes, step.content) stay as HTML — the app renders those bits with react-native-render-html.
+ */
+export interface RecipeStructured {
+  intro: string;
+  notes: string;
+  flavor: { notes: string; tastes: RecipeTaste[] };
+  ingredient_sections: RecipeIngredientSection[];
+  instructions: RecipeStep[];
+}
+
 /** A single article. `contentHtml` is present only for verified paid members. */
 export interface ArticleDetail extends Article {
   locked: boolean;
   contentHtml: string | null;
+  /** Recipes only: structured data for native rendering. null for posts, locked callers, or
+   *  WordPress installs without the updated mu-plugin (the reader falls back to contentHtml). */
+  structured?: RecipeStructured | null;
 }
 
 /** How long content responses stay fresh. A content feed tolerates minutes of staleness. */

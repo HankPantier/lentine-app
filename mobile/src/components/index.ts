@@ -8,6 +8,7 @@ export { Heading } from './Heading';
 export { JumpToRecipePill } from './JumpToRecipePill';
 export { OptionCard } from './OptionCard';
 export { ProgressDots } from './ProgressDots';
+export { RecipeBody } from './RecipeBody';
 export { Rule } from './Rule';
 export { SeasonDoshaMeta } from './SeasonDoshaMeta';
 export { DarkScreen, OnbTopBar, Screen } from './Screen';

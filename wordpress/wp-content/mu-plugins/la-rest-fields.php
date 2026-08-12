@@ -187,6 +187,7 @@ function la_recipe_body_route( $request ) {
 		'slug'        => $slug,
 		'visibility'  => la_visibility( $post_id ),
 		'recipe_body' => la_cached_recipe_body( $post_id ),
+		'structured'  => la_cached_recipe_structured( $post_id ),
 	);
 }
 
@@ -211,6 +212,7 @@ add_action(
 	'save_post_recipe',
 	function ( $post_id ) {
 		delete_transient( 'la_recipe_body_' . $post_id );
+		delete_transient( 'la_recipe_struct_' . $post_id );
 	}
 );
 add_action(
@@ -218,6 +220,7 @@ add_action(
 	function ( $post_id ) {
 		if ( 'recipe' === get_post_type( $post_id ) ) {
 			delete_transient( 'la_recipe_body_' . $post_id );
+			delete_transient( 'la_recipe_struct_' . $post_id );
 		}
 	},
 	20
@@ -302,6 +305,84 @@ function la_assemble_recipe_body( $post_id ) {
 	}
 
 	return $html;
+}
+
+/**
+ * The recipe's STRUCTURED data (same ACF fields as la_assemble_recipe_body, but as arrays instead
+ * of HTML) so the app can render ingredients/steps/flavor as native components with precise layout
+ * (aligned amount columns, numbered step badges, a flavor grid) - react-native-render-html can't do
+ * that from a flat HTML blob. `recipe_body` stays for the HTML fallback. Prose fields (intro, notes,
+ * flavor.notes, each step's content) remain HTML - the app renders those bits with RNRH.
+ */
+function la_recipe_structured( $post_id ) {
+	$flavor_notes = get_field( 'flavor_notes', $post_id );
+	$tastes       = array();
+	if ( $flavor_notes ) {
+		$map = array(
+			'Sweet'      => get_field( 'flavor_sweet', $post_id ),
+			'Salty'      => get_field( 'flavor_salty', $post_id ),
+			'Sour'       => get_field( 'flavor_sour', $post_id ),
+			'Bitter'     => get_field( 'flavor_bitter', $post_id ),
+			'Astringent' => get_field( 'flavor_astringent', $post_id ),
+			'Pungent'    => get_field( 'flavor_pungent', $post_id ),
+		);
+		foreach ( $map as $label => $value ) {
+			$tastes[] = array( 'label' => $label, 'value' => $value ? $value : 'N/A' );
+		}
+	}
+
+	$ingredient_sections = array();
+	if ( have_rows( 'ingredient_section', $post_id ) ) {
+		while ( have_rows( 'ingredient_section', $post_id ) ) {
+			the_row();
+			$items = array();
+			while ( have_rows( 'ingredients' ) ) {
+				the_row();
+				$amount  = trim( get_sub_field( 'amount' ) . ' ' . get_sub_field( 'unit' ) );
+				$name    = (string) get_sub_field( 'name' );
+				$notes   = get_sub_field( 'notes' );
+				$item    = $notes ? trim( $name . ' (' . $notes . ')' ) : $name;
+				$items[] = array( 'amount' => $amount, 'item' => $item );
+			}
+			$ingredient_sections[] = array(
+				'headline' => (string) get_sub_field( 'headline' ),
+				'items'    => $items,
+			);
+		}
+	}
+
+	$instructions = array();
+	if ( have_rows( 'instructions', $post_id ) ) {
+		while ( have_rows( 'instructions', $post_id ) ) {
+			the_row();
+			$instructions[] = array(
+				'headline' => (string) get_sub_field( 'headline' ),
+				'content'  => (string) get_sub_field( 'content' ),
+			);
+		}
+	}
+
+	return array(
+		'intro'               => (string) get_field( 'intro', $post_id ),
+		'notes'               => (string) get_field( 'notes', $post_id ),
+		'flavor'              => array(
+			'notes'  => (string) $flavor_notes,
+			'tastes' => $tastes,
+		),
+		'ingredient_sections' => $ingredient_sections,
+		'instructions'        => $instructions,
+	);
+}
+
+/** Transient-cached structured data (mirrors la_cached_recipe_body; same invalidation hooks). */
+function la_cached_recipe_structured( $post_id ) {
+	$cache_key = 'la_recipe_struct_' . $post_id;
+	$data      = get_transient( $cache_key );
+	if ( false === $data ) {
+		$data = la_recipe_structured( $post_id );
+		set_transient( $cache_key, $data, 12 * HOUR_IN_SECONDS );
+	}
+	return $data;
 }
 
 /**

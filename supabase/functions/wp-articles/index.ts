@@ -89,6 +89,8 @@ interface ArticleSource {
   summary: ReturnType<typeof toArticle>;
   type: ContentType;
   contentHtml: string;
+  /** Recipes only: structured ACF data for native rendering. null for posts / old cache entries. */
+  structured?: unknown;
 }
 const articleSourceCache = new Map<string, { at: number; src: ArticleSource }>();
 
@@ -98,10 +100,15 @@ function articleSource(slug: string): ArticleSource | null {
   return hit.src;
 }
 
-/** Apply the caller's entitlement to cached WP data — the body only leaves for entitled tiers. */
+/** Apply the caller's entitlement to cached WP data — body + structured only leave for entitled tiers. */
 function gateArticle(src: ArticleSource, tier: Tier | null) {
   const locked = !canUnlock(src.type, src.summary.visibility, tier);
-  return { ...src.summary, locked, contentHtml: locked ? null : src.contentHtml };
+  return {
+    ...src.summary,
+    locked,
+    contentHtml: locked ? null : src.contentHtml,
+    structured: locked ? null : (src.structured ?? null),
+  };
 }
 
 /**
@@ -156,19 +163,20 @@ function inBackground(work: Promise<unknown>) {
 
 /** Re-fetch a slug's full source from WordPress and refresh both caches. */
 async function revalidateArticle(slug: string): Promise<void> {
-  const [found, body] = await Promise.all([
+  const [found, recipe] = await Promise.all([
     findBySlug(slug),
-    fetchRecipeBody(slug).catch(() => ''), // cheap for posts (404), transient-cached for recipes
+    fetchRecipe(slug).catch(() => ({ body: '', structured: null })), // cheap for posts (404)
   ]);
   if (!found) return;
   const summary = toArticle(found.post, found.type);
   const contentHtml =
     found.type === 'recipe'
-      ? body
+      ? recipe.body
       : // deno-lint-ignore no-explicit-any
         (((found.post as any)?.content?.rendered as string | undefined) ?? '');
   if (found.type === 'recipe' && !contentHtml) return; // never pin an empty body
-  const src: ArticleSource = { summary, type: found.type, contentHtml };
+  const structured = found.type === 'recipe' ? recipe.structured : null;
+  const src: ArticleSource = { summary, type: found.type, contentHtml, structured };
   articleSourceCache.set(slug, { at: Date.now(), src });
   await sharedCachePut(`article:${slug}`, src);
 }
@@ -259,14 +267,21 @@ async function findBySlug(slug: string): Promise<{ post: unknown; type: ContentT
   return null;
 }
 
-/** The assembled body of an unlocked recipe (recipes have no `content` — it lives in ACF). */
-async function fetchRecipeBody(slug: string): Promise<string> {
+/**
+ * The gated payload of a recipe (recipes have no `content` — it lives in ACF): the assembled HTML
+ * body (`recipe_body`) plus `structured` ACF data for native rendering. Both come from the auth-only
+ * la/v1/recipe route; structured is absent on WordPress installs without the updated mu-plugin.
+ */
+async function fetchRecipe(slug: string): Promise<{ body: string; structured: unknown }> {
   const res = await fetch(`${WP_BASE_URL}/wp-json/la/v1/recipe/${encodeURIComponent(slug)}`, {
     headers: basicAuthHeaders(),
   });
-  if (!res.ok) return '';
+  if (!res.ok) return { body: '', structured: null };
   const data = await res.json();
-  return (data?.recipe_body as string | undefined) ?? '';
+  return {
+    body: (data?.recipe_body as string | undefined) ?? '',
+    structured: (data?.structured as unknown) ?? null,
+  };
 }
 
 Deno.serve(async (req) => {
@@ -380,22 +395,29 @@ Deno.serve(async (req) => {
     // unlock, so they skip the extra origin hit); if the slug turns out to be a post or the
     // caller isn't entitled, the result is simply not used this request — but it still
     // warms the cache for the next one.
-    const speculativeBody = authHeader ? fetchRecipeBody(body.slug).catch(() => '') : null;
+    const speculativeRecipe = authHeader
+      ? fetchRecipe(body.slug).catch(() => ({ body: '', structured: null }))
+      : null;
     const found = await findBySlug(body.slug);
     if (!found) return json({ error: 'not found' }, 404);
 
     const summary = toArticle(found.post, found.type);
     const unlocked = canUnlock(found.type, summary.visibility, tier);
     let contentHtml = '';
+    let structured: unknown = null;
     if (found.type === 'recipe') {
-      // The body is awaited only for entitled callers — a locked response never waits on
-      // (or triggers) the extra origin hit.
-      if (unlocked) contentHtml = await (speculativeBody ?? fetchRecipeBody(body.slug).catch(() => ''));
+      // The body + structured data are awaited only for entitled callers — a locked response
+      // never waits on (or triggers) the extra origin hit.
+      if (unlocked) {
+        const recipe = await (speculativeRecipe ?? fetchRecipe(body.slug).catch(() => ({ body: '', structured: null })));
+        contentHtml = recipe.body;
+        structured = recipe.structured;
+      }
     } else {
       // deno-lint-ignore no-explicit-any
       contentHtml = ((found.post as any)?.content?.rendered as string | undefined) ?? '';
     }
-    const src: ArticleSource = { summary, type: found.type, contentHtml };
+    const src: ArticleSource = { summary, type: found.type, contentHtml, structured };
     // Cache only complete sources: a recipe without its body (locked caller, failed fetch)
     // must hit the origin next request instead of pinning an empty body for the TTL.
     if (found.type !== 'recipe' || contentHtml) {
