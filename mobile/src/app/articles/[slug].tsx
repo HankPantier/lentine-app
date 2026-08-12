@@ -10,10 +10,11 @@ import {
   View,
 } from 'react-native';
 import RenderHtml, { type MixedStyleRecord } from 'react-native-render-html';
-import { AppHeader, Button, Eyebrow, FavoriteButton, Heading, JumpToRecipePill, RecipeBody, Screen, SeasonDoshaMeta, Text } from '@/components';
+import { AppHeader, Button, CollapsibleHtml, CookMode, Eyebrow, FavoriteButton, Heading, JumpToRecipePill, RecipeBody, Screen, SeasonDoshaMeta, Text } from '@/components';
 import { boxRecipeSections, splitAtIngredients, tidyArticleHtml } from '@/lib/article-html';
 import { getArticlePreview } from '@/lib/article-preview';
 import { type Article, type ArticleDetail, type RecipeStructured, fetchArticle } from '@/lib/articles';
+import { useCheckedIngredients } from '@/lib/cook-state';
 import { canAccess, entitledTier } from '@/lib/entitlement';
 import { isFavorited, toFavoriteEntry, toggleFavorite } from '@/lib/favorites-encoding';
 import { formatLongDate } from '@/lib/format';
@@ -129,6 +130,9 @@ export default function ArticleRoute() {
   const [markerY, setMarkerY] = useState<number | null>(null);
   const [pastRecipe, setPastRecipe] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  // Cook-along state (device-local, per recipe): checked ingredients + the Cook Mode overlay.
+  const { checkedKeys, toggle: toggleIngredient, reset: resetChecked } = useCheckedIngredients(slug);
+  const [cookOpen, setCookOpen] = useState(false);
   const tidied = useMemo(
     () => (detail?.contentHtml ? tidyArticleHtml(detail.contentHtml) : null),
     [detail],
@@ -307,14 +311,16 @@ export default function ArticleRoute() {
       ) : hasStructured && structured ? (
         <>
           {structured.intro ? (
-            <RenderHtml
-              contentWidth={contentWidth}
-              source={{ html: tidyArticleHtml(structured.intro) }}
-              baseStyle={BASE_STYLE}
-              systemFonts={SYSTEM_FONTS}
-              tagsStyles={TAGS_STYLES}
-              enableExperimentalMarginCollapsing
-            />
+            <CollapsibleHtml>
+              <RenderHtml
+                contentWidth={contentWidth}
+                source={{ html: tidyArticleHtml(structured.intro) }}
+                baseStyle={BASE_STYLE}
+                systemFonts={SYSTEM_FONTS}
+                tagsStyles={TAGS_STYLES}
+                enableExperimentalMarginCollapsing
+              />
+            </CollapsibleHtml>
           ) : null}
           {/* Marker wraps the signpost + native recipe, so "Jump to Recipe" lands on "The Recipe". */}
           <View onLayout={(e) => setMarkerY(e.nativeEvent.layout.y)}>
@@ -332,21 +338,42 @@ export default function ArticleRoute() {
                 {summary.title}
               </Heading>
             </View>
-            <RecipeBody structured={structured} contentWidth={contentWidth} />
+            <RecipeBody
+              structured={structured}
+              contentWidth={contentWidth}
+              checkedKeys={checkedKeys}
+              onToggleIngredient={toggleIngredient}
+              onResetChecked={resetChecked}
+              onStartCookMode={structured.instructions.length ? () => setCookOpen(true) : undefined}
+            />
           </View>
+          {cookOpen ? (
+            <CookMode
+              visible
+              onClose={() => setCookOpen(false)}
+              title={summary.title}
+              instructions={structured.instructions}
+              contentWidth={contentWidth}
+            />
+          ) : null}
         </>
       ) : parts ? (
+        // Legacy split-HTML recipes (no structured ACF data) keep the plain reader: the
+        // description collapses, but there are no ingredient checkboxes or Cook Mode here —
+        // those attach only to the native RecipeBody above.
         <>
           {parts.intro ? (
-            <RenderHtml
-              contentWidth={contentWidth}
-              source={{ html: introHtml ?? '' }}
-              baseStyle={BASE_STYLE}
-              systemFonts={SYSTEM_FONTS}
-              tagsStyles={TAGS_STYLES}
-              classesStyles={CLASSES_STYLES}
-              enableExperimentalMarginCollapsing
-            />
+            <CollapsibleHtml>
+              <RenderHtml
+                contentWidth={contentWidth}
+                source={{ html: introHtml ?? '' }}
+                baseStyle={BASE_STYLE}
+                systemFonts={SYSTEM_FONTS}
+                tagsStyles={TAGS_STYLES}
+                classesStyles={CLASSES_STYLES}
+                enableExperimentalMarginCollapsing
+              />
+            </CollapsibleHtml>
           ) : null}
           {/* Direct child of the scroll content container, so layout.y is the scroll target.
               The signpost leads it, so "Jump to Recipe" lands on this "The Recipe" header —
