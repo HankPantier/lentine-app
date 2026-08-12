@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lentine Alexis — Recipe Reader (current baseline)</title>
+<!-- Mulish is the app's shipped font (a stand-in for the licensed Galano Classic). Loaded here
+     for fidelity; the app bundles it locally. -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Mulish:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Dancing+Script:wght@600&display=swap" rel="stylesheet" />
+<style>
+  /* ---------------------------------------------------------------------------
+     BRAND TOKENS  (verbatim from mobile/src/theme/tokens.ts)
+     Sharp corners everywhere EXCEPT buttons (5px). Italic = the brand's voice.
+     --------------------------------------------------------------------------- */
+  :root {
+    --navy:        #000033; /* primary text / headings / primary buttons        */
+    --taupe:       #f4f0ec; /* default page background                          */
+    --white:       #ffffff; /* card / panel fill (the one exception to taupe)    */
+    --gray:        #E7E7E7; /* hairline borders                                 */
+    --blue-bright: #0099B1; /* links at rest / category eyebrow                 */
+    --teal:        #3FBECC; /* highlight accent (blueLight)                     */
+    --orange:      #FF9700; /* important CTA — one per view                     */
+
+    --fg-secondary: rgba(0,0,51,0.72);
+    --fg-tertiary:  rgba(0,0,51,0.50);
+
+    --radius-sharp: 0px;
+    --radius-button: 5px;
+
+    --sans: 'Mulish', -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --script: 'Dancing Script', cursive; /* approximates the Lentine wordmark */
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: #d8d2ca; /* neutral surround so the taupe "screen" reads as a device */
+    font-family: var(--sans);
+    color: var(--navy);
+    -webkit-font-smoothing: antialiased;
+    padding: 32px 16px;
+  }
+
+  /* The mobile "screen" — the app's Screen component (taupe, scrollable). ~430px wide. */
+  .screen {
+    max-width: 430px;
+    margin: 0 auto;
+    background: var(--taupe);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.18);
+    overflow: hidden;
+  }
+
+  /* ---- AppHeader (wordmark centered; back left; heart + avatar right) ---- */
+  .appheader {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 24px 4px;
+  }
+  .appheader .back { font-size: 22px; line-height: 1; color: var(--navy); }
+  .appheader .wordmark { font-family: var(--script); font-size: 26px; color: var(--navy); }
+  .appheader .right { display: flex; align-items: center; gap: 14px; }
+  .appheader .heart { font-size: 20px; color: var(--navy); }
+  .appheader .avatar {
+    width: 30px; height: 30px; border-radius: 999px; background: var(--teal);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--navy); font-weight: 700; font-size: 13px;
+  }
+
+  /* ---- Hero image (200px). Real recipes carry a food photo here. ---- */
+  .hero {
+    height: 200px;
+    background:
+      radial-gradient(120% 120% at 30% 20%, #e7c9a0 0%, #cf9f6b 45%, #a9743f 100%);
+    position: relative;
+  }
+  .hero::after {
+    content: "recipe photo";
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.55); font-style: italic; letter-spacing: 1px; font-size: 13px;
+  }
+
+  /* ---- SEASON / DOSHA meta band — white, docked flush under the image ---- */
+  .meta-band {
+    background: var(--white);
+    display: flex; gap: 22px; padding: 12px 24px;
+    font-size: 11px; letter-spacing: 0.5px;
+  }
+  .meta-band .label { color: var(--fg-tertiary); text-transform: uppercase; }
+  .meta-band .val { color: var(--navy); }
+
+  /* ---- Body content region (24px horizontal padding, like Screen) ---- */
+  .content { padding: 18px 24px 40px; }
+
+  .eyebrow {
+    text-transform: uppercase; letter-spacing: 0.5px; font-size: 12px; font-weight: 600;
+  }
+  .eyebrow.category { color: var(--blue-bright); }
+
+  .title {
+    font-weight: 700; font-size: 28px; line-height: 34px; margin: 8px 0 0;
+  }
+  .byline {
+    display: flex; align-items: center; justify-content: space-between;
+    margin: 8px 0 16px;
+  }
+  .byline .date { color: var(--fg-tertiary); font-size: 13px; }
+  .byline .heart { font-size: 22px; color: var(--navy); }
+
+  /* Buttons: the ONLY rounded corners (5px); brand CTAs are italic + uppercase. */
+  .btn-outline {
+    display: inline-block; border: 1px solid var(--navy); color: var(--navy);
+    background: transparent; border-radius: var(--radius-button);
+    padding: 8px 16px; font-size: 13px; letter-spacing: 0.5px;
+    text-transform: uppercase; font-style: italic; font-weight: 600;
+    margin-bottom: 18px; cursor: pointer;
+  }
+
+  /* ---- Rendered WordPress body (react-native-render-html, tagsStyles) ---- */
+  .rnrh { font-size: 16px; line-height: 26px; color: var(--navy); }
+  .rnrh p { margin: 6px 0; }
+  .rnrh a { color: var(--blue-bright); text-decoration: none; }
+  .rnrh strong { font-weight: 700; }
+  .rnrh em { font-style: italic; }
+  .rnrh h3 { font-weight: 600; font-size: 19px; line-height: 26px; margin: 8px 0 0; }
+  .rnrh h4 { font-weight: 600; font-size: 16px; line-height: 22px; margin: 12px 0 2px; }
+  .rnrh ul, .rnrh ol { margin: 4px 0 8px; padding-left: 20px; }
+  .rnrh li { line-height: 26px; margin: 2px 0; }
+
+  /* ---- The "The Recipe" signpost between intro and the recipe proper ---- */
+  .signpost { border-top: 1px solid var(--gray); margin-top: 8px; padding-top: 18px; }
+  .signpost .eyebrow { color: var(--blue-bright); }
+  .signpost .dish { font-weight: 700; font-size: 24px; line-height: 30px; margin: 6px 0 8px; }
+
+  /* ---- Recipe section panels  (class="recipe-section")  ----
+     CURRENT baseline after the fix: white fill + gray hairline on the taupe page.
+     THIS IS THE MAIN THING TO MAKE NICER. */
+  .recipe-section {
+    background: var(--white);
+    border: 1px solid var(--gray);
+    border-radius: var(--radius-sharp);
+    padding: 6px 16px 16px;
+    margin-bottom: 14px;
+  }
+
+  /* Flavor-notes taste list renders as bold label + value list items. */
+  .rnrh ul.taste { list-style: none; padding-left: 0; }
+  .rnrh ul.taste li { margin: 3px 0; }
+</style>
+</head>
+<body>
+  <div class="screen">
+    <!-- AppHeader -->
+    <div class="appheader">
+      <span class="back">‹</span>
+      <span class="wordmark">Lentine Alexis</span>
+      <span class="right"><span class="heart">♡</span><span class="avatar">A</span></span>
+    </div>
+
+    <!-- Hero photo -->
+    <div class="hero"></div>
+
+    <!-- SEASON / DOSHA meta band -->
+    <div class="meta-band">
+      <span><span class="label">Season:</span> <span class="val">Fall, Winter</span></span>
+      <span><span class="label">Dosha:</span> <span class="val">Vata, Kapha</span></span>
+    </div>
+
+    <div class="content">
+      <div class="eyebrow category">Breakfast</div>
+      <h1 class="title">Golden Spiced Oat + Almond Breakfast Cake</h1>
+      <div class="byline"><span class="date">November 12, 2026</span><span class="heart">♡</span></div>
+
+      <button class="btn-outline">Jump to Recipe</button>
+
+      <!-- INTRO (blog-post prose, rendered UNBOXED on the taupe page) -->
+      <div class="rnrh intro">
+        <p>There’s a particular grey that settles over late autumn mornings — the light thin, the
+          air sharp, the body asking to slow down. This is the cake I make when I want breakfast to
+          feel like a small act of grounding rather than a rush out the door.</p>
+        <p>Warm oats, toasted almond, and a generous hand of cardamom and cinnamon make it deeply
+          <em>vata-</em> and <em>kapha-</em>friendly: nourishing, a little sweet, never heavy. It
+          keeps for three days and only gets better with a smear of ghee.</p>
+      </div>
+
+      <!-- SIGNPOST: where the recipe proper begins (the Jump-to-Recipe target) -->
+      <div class="signpost">
+        <div class="eyebrow">The Recipe</div>
+        <div class="dish">Golden Spiced Oat + Almond Breakfast Cake</div>
+      </div>
+
+      <!-- RECIPE SECTIONS — each wrapped by boxRecipeSections() as .recipe-section -->
+      <div class="recipe-section rnrh">
+        <h3>Recipe Notes</h3>
+        <p>Make it your own: swap the almonds for toasted walnuts in deep winter, and fold in a
+          grated apple if you want extra moisture. Gluten-free oats work perfectly.</p>
+      </div>
+
+      <div class="recipe-section rnrh">
+        <h3>Flavor Notes</h3>
+        <p>Warming and grounding, with a gentle sweetness that settles rather than spikes.</p>
+        <ul class="taste">
+          <li><strong>Sweet:</strong> maple, oat, almond</li>
+          <li><strong>Salty:</strong> a pinch, to lift</li>
+          <li><strong>Sour:</strong> N/A</li>
+          <li><strong>Bitter:</strong> toasted spice</li>
+          <li><strong>Astringent:</strong> N/A</li>
+          <li><strong>Pungent:</strong> cardamom, ginger</li>
+        </ul>
+      </div>
+
+      <div class="recipe-section rnrh">
+        <h3>Ingredients</h3>
+        <h4>For the cake</h4>
+        <ul>
+          <li>2 cups rolled oats</li>
+          <li>1 cup almond flour</li>
+          <li>2 tsp ground cardamom</li>
+          <li>1 tsp cinnamon</li>
+          <li>½ tsp ground ginger</li>
+          <li>¼ tsp fine sea salt</li>
+          <li>2 eggs (or 2 flax eggs)</li>
+          <li>⅓ cup maple syrup</li>
+          <li>¼ cup melted ghee, plus more to serve</li>
+          <li>¾ cup warm milk of choice</li>
+        </ul>
+        <h4>For the topping</h4>
+        <ul>
+          <li>⅓ cup sliced almonds</li>
+          <li>1 tbsp maple syrup</li>
+          <li>flaky salt, to finish</li>
+        </ul>
+      </div>
+
+      <div class="recipe-section rnrh">
+        <h3>Instructions</h3>
+        <ol>
+          <li>
+            <h4>Prep</h4>
+            <p>Heat the oven to 350°F and line an 8-inch square pan. Warm the milk and ghee together
+              until just loose.</p>
+          </li>
+          <li>
+            <h4>Mix</h4>
+            <p>Whisk the oats, almond flour, spices, and salt. In a second bowl beat the eggs, maple,
+              ghee, and milk, then fold the wet into the dry until just combined.</p>
+          </li>
+          <li>
+            <h4>Top + bake</h4>
+            <p>Spread into the pan, scatter the almonds, drizzle with maple, and finish with flaky
+              salt. Bake 28–32 minutes until the center springs back.</p>
+          </li>
+          <li>
+            <h4>Serve</h4>
+            <p>Cool 10 minutes, cut into squares, and serve warm with an extra smear of ghee.</p>
+          </li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
