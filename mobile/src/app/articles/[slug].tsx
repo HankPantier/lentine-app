@@ -40,14 +40,17 @@ const TAGS_STYLES: MixedStyleRecord = {
 };
 
 // Recipe section panels: each assembled <h3> section (Ingredients, Instructions, Notes…) is
-// wrapped in <div class="recipe-section"> so it shades into a taupe box — replicating the site's
-// scannable recipe layout. Plain articles have no such class, so they render flat as before.
+// wrapped in <div class="recipe-section"> so it reads as a distinct card — replicating the
+// site's scannable recipe layout. White fill + gray hairline (the app's card convention) so the
+// panel stands out against the taupe page. Plain articles have no such class → flat as before.
 const CLASSES_STYLES: MixedStyleRecord = {
   'recipe-section': {
-    backgroundColor: colors.taupe,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.gray,
     paddingHorizontal: 16,
-    paddingTop: 4,
-    paddingBottom: 14,
+    paddingTop: 6,
+    paddingBottom: 16,
     marginBottom: 14,
   },
 };
