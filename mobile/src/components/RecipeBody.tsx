@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import RenderHtml, { type MixedStyleRecord } from 'react-native-render-html';
 import type { RecipeStructured } from '@/lib/articles';
+import { ingredientKey } from '@/lib/cook-state';
 import { colors, fg, fonts } from '@/theme/tokens';
+import { Button } from './Button';
 import { Text } from './Text';
 
 /**
@@ -27,7 +29,9 @@ const PROSE_TAGS: MixedStyleRecord = {
   img: { marginTop: 16, marginBottom: 32 },
 };
 
-function Prose({ html, width }: { html: string; width: number }) {
+/** Recipe prose (notes, flavor notes, each step's body) — RNRH with the recipe HTML config.
+ *  Exported so Cook Mode renders step content with the exact same styling. */
+export function Prose({ html, width }: { html: string; width: number }) {
   return (
     <RenderHtml
       contentWidth={width}
@@ -40,8 +44,17 @@ function Prose({ html, width }: { html: string; width: number }) {
   );
 }
 
-/** A white card with the eyebrow section header + navy underline rule. */
-function SectionCard({ title, children }: { title: string; children: ReactNode }) {
+/** A white card with the eyebrow section header + navy underline rule. An optional `action`
+ *  (e.g. Reset, Cook Mode) rides the right of the header row. */
+function SectionCard({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <View
       style={{
@@ -54,23 +67,55 @@ function SectionCard({ title, children }: { title: string; children: ReactNode }
         marginBottom: 14,
       }}
     >
-      <Text
+      <View
         style={{
-          fontFamily: fonts.bold,
-          fontSize: 12,
-          lineHeight: 16,
-          letterSpacing: 0.7,
-          textTransform: 'uppercase',
-          color: colors.blueBright,
+          flexDirection: 'row',
+          alignItems: 'flex-end',
+          justifyContent: 'space-between',
           borderBottomWidth: 1,
           borderBottomColor: colors.blue,
           paddingBottom: 10,
           marginBottom: 12,
         }}
       >
-        {title}
-      </Text>
+        <Text
+          style={{
+            fontFamily: fonts.bold,
+            fontSize: 12,
+            lineHeight: 16,
+            letterSpacing: 0.7,
+            textTransform: 'uppercase',
+            color: colors.blueBright,
+          }}
+        >
+          {title}
+        </Text>
+        {action}
+      </View>
       {children}
+    </View>
+  );
+}
+
+/** A sharp-cornered checkbox — empty outline when unchecked, teal fill + check when checked. */
+function Checkbox({ checked }: { checked: boolean }) {
+  return (
+    <View
+      style={{
+        width: 20,
+        height: 20,
+        borderWidth: 1.5,
+        borderColor: checked ? colors.blueLight : fg.faint,
+        backgroundColor: checked ? colors.blueLight : 'transparent',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {checked ? (
+        <Text style={{ color: colors.white, fontFamily: fonts.bold, fontSize: 12, lineHeight: 14 }}>
+          ✓
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -78,14 +123,29 @@ function SectionCard({ title, children }: { title: string; children: ReactNode }
 export function RecipeBody({
   structured,
   contentWidth,
+  checkedKeys,
+  onToggleIngredient,
+  onResetChecked,
+  onStartCookMode,
 }: {
   structured: RecipeStructured;
   contentWidth: number;
+  /** Ingredient keys (`sectionIndex:itemIndex`) currently checked off. */
+  checkedKeys?: string[];
+  /** When provided, ingredient rows become tappable check-off toggles. */
+  onToggleIngredient?: (key: string) => void;
+  /** When provided and any row is checked, a Reset control appears in the Ingredients header. */
+  onResetChecked?: () => void;
+  /** When provided, a "Cook Mode" launch button appears in the Instructions header. */
+  onStartCookMode?: () => void;
 }) {
   const innerWidth = Math.max(contentWidth - 36, 200); // minus the card's 18px horizontal padding
   const { notes, flavor, ingredient_sections: sections, instructions } = structured;
   const tastes = flavor?.tastes ?? [];
   const hasFlavor = !!(flavor?.notes || tastes.length);
+  const interactive = !!onToggleIngredient;
+  const checkedSet = new Set(checkedKeys ?? []);
+  const anyChecked = checkedSet.size > 0;
 
   return (
     <View>
@@ -133,7 +193,26 @@ export function RecipeBody({
       ) : null}
 
       {sections.length ? (
-        <SectionCard title="Ingredients">
+        <SectionCard
+          title="Ingredients"
+          action={
+            interactive && anyChecked && onResetChecked ? (
+              <Pressable onPress={onResetChecked} accessibilityRole="button" hitSlop={8}>
+                <Text
+                  italic
+                  style={{
+                    color: colors.blueBright,
+                    fontSize: 11,
+                    letterSpacing: 0.5,
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Reset
+                </Text>
+              </Pressable>
+            ) : undefined
+          }
+        >
           {sections.map((section, si) => (
             <View key={si}>
               {section.headline ? (
@@ -151,33 +230,67 @@ export function RecipeBody({
                   {section.headline}
                 </Text>
               ) : null}
-              {section.items.map((it, ii) => (
-                <View
-                  key={ii}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'flex-start',
-                    gap: 12,
-                    paddingVertical: 7,
-                    borderBottomWidth: ii === section.items.length - 1 ? 0 : 1,
-                    borderBottomColor: colors.gray,
-                  }}
-                >
-                  <Text
-                    style={{ width: 58, textAlign: 'right', fontFamily: fonts.bold, fontSize: 14, color: colors.blue }}
+              {section.items.map((it, ii) => {
+                const key = ingredientKey(si, ii);
+                const checked = interactive && checkedSet.has(key);
+                // Checked rows strike + dim; the amount column stays put (checkbox trails right).
+                const textColor = checked ? fg.tertiary : colors.blue;
+                const strike = checked ? ({ textDecorationLine: 'line-through' } as const) : null;
+                const rowStyle = {
+                  flexDirection: 'row',
+                  alignItems: 'flex-start',
+                  gap: 12,
+                  paddingVertical: 7,
+                  borderBottomWidth: ii === section.items.length - 1 ? 0 : 1,
+                  borderBottomColor: colors.gray,
+                } as const;
+                const cells = (
+                  <>
+                    <Text
+                      style={[
+                        { width: 58, textAlign: 'right', fontFamily: fonts.bold, fontSize: 14, color: textColor },
+                        strike,
+                      ]}
+                    >
+                      {it.amount || '—'}
+                    </Text>
+                    <Text style={[{ flex: 1, fontSize: 15, lineHeight: 20, color: textColor }, strike]}>
+                      {it.item}
+                    </Text>
+                    {interactive ? <Checkbox checked={checked} /> : null}
+                  </>
+                );
+                return interactive ? (
+                  <Pressable
+                    key={ii}
+                    onPress={() => onToggleIngredient?.(key)}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked }}
+                    accessibilityLabel={it.item}
+                    style={rowStyle}
                   >
-                    {it.amount || '—'}
-                  </Text>
-                  <Text style={{ flex: 1, fontSize: 15, lineHeight: 20, color: colors.blue }}>{it.item}</Text>
-                </View>
-              ))}
+                    {cells}
+                  </Pressable>
+                ) : (
+                  <View key={ii} style={rowStyle}>
+                    {cells}
+                  </View>
+                );
+              })}
             </View>
           ))}
         </SectionCard>
       ) : null}
 
       {instructions.length ? (
-        <SectionCard title="Instructions">
+        <SectionCard
+          title="Instructions"
+          action={
+            onStartCookMode ? (
+              <Button label="Cook Mode" variant="outline" size="sm" onPress={onStartCookMode} />
+            ) : undefined
+          }
+        >
           {instructions.map((step, i) => (
             <View key={i} style={{ marginBottom: i === instructions.length - 1 ? 0 : 16 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
