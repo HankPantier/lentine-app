@@ -55,6 +55,9 @@ export interface OnboardingState {
   quizNudgeDismissedAt: number | null;
   /** Notification category preferences; null until the member sets them (onboarding or account). */
   notificationPrefs: NotificationPrefs | null;
+  /** Feed content preference: 'recipes-only' hides articles from the home feed (e.g. Recipe Club
+   *  members who only want recipes). Defaults to 'all'. Persisted locally across sessions. */
+  feedContentPref: 'all' | 'recipes-only';
   /** Recipes hearted in the reader, newest first. Local-first; synced with Supabase at sign-in. */
   favorites: FavoriteEntry[];
 }
@@ -87,6 +90,7 @@ function initialState(): OnboardingState {
     completed: false,
     quizNudgeDismissedAt: null,
     notificationPrefs: null,
+    feedContentPref: 'all',
     favorites: [],
   };
 }

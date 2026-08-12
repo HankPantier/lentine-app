@@ -1,4 +1,4 @@
-import { splitAtIngredients, tidyArticleHtml } from './article-html';
+import { boxRecipeSections, splitAtIngredients, tidyArticleHtml } from './article-html';
 
 describe('tidyArticleHtml', () => {
   it('strips whitespace-only paragraphs (the WP &nbsp; spacer gaps)', () => {
@@ -32,6 +32,35 @@ describe('tidyArticleHtml', () => {
   it('passes plain content through unchanged', () => {
     const html = '<p>Just an article body with <strong>bold</strong>.</p>';
     expect(tidyArticleHtml(html)).toBe(html);
+  });
+});
+
+describe('boxRecipeSections', () => {
+  it('wraps each h3 section in a recipe-section panel, leaving the intro prose unboxed', () => {
+    const html =
+      '<p>Intro prose.</p><h3>Ingredients</h3><ul><li>oats</li></ul><h3>Instructions</h3><ol><li>Cook.</li></ol>';
+    expect(boxRecipeSections(html)).toBe(
+      '<p>Intro prose.</p>' +
+        '<div class="recipe-section"><h3>Ingredients</h3><ul><li>oats</li></ul></div>' +
+        '<div class="recipe-section"><h3>Instructions</h3><ol><li>Cook.</li></ol></div>',
+    );
+  });
+
+  it('boxes a section that opens the body (no leading prose)', () => {
+    expect(boxRecipeSections('<h3>Ingredients</h3><ul><li>x</li></ul>')).toBe(
+      '<div class="recipe-section"><h3>Ingredients</h3><ul><li>x</li></ul></div>',
+    );
+  });
+
+  it('tolerates attributes on the heading and does not match <h3x>', () => {
+    expect(boxRecipeSections('<h3 class="wp-block">Notes</h3><p>n</p>')).toBe(
+      '<div class="recipe-section"><h3 class="wp-block">Notes</h3><p>n</p></div>',
+    );
+  });
+
+  it('leaves h3-less content (plain articles) untouched', () => {
+    const html = '<p>Just an article.</p><h4>Sub</h4><p>More.</p>';
+    expect(boxRecipeSections(html)).toBe(html);
   });
 });
 

@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import RenderHtml, { type MixedStyleRecord } from 'react-native-render-html';
 import { AppHeader, Button, Eyebrow, FavoriteButton, Heading, JumpToRecipePill, Screen, SeasonDoshaMeta, Text } from '@/components';
-import { splitAtIngredients, tidyArticleHtml } from '@/lib/article-html';
+import { boxRecipeSections, splitAtIngredients, tidyArticleHtml } from '@/lib/article-html';
 import { getArticlePreview } from '@/lib/article-preview';
 import { type Article, type ArticleDetail, fetchArticle } from '@/lib/articles';
 import { canAccess, entitledTier } from '@/lib/entitlement';
@@ -37,6 +37,19 @@ const TAGS_STYLES: MixedStyleRecord = {
   strong: { fontFamily: fonts.bold },
   em: { fontFamily: fonts.italic },
   li: { lineHeight: 26 },
+};
+
+// Recipe section panels: each assembled <h3> section (Ingredients, Instructions, Notes…) is
+// wrapped in <div class="recipe-section"> so it shades into a taupe box — replicating the site's
+// scannable recipe layout. Plain articles have no such class, so they render flat as before.
+const CLASSES_STYLES: MixedStyleRecord = {
+  'recipe-section': {
+    backgroundColor: colors.taupe,
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 14,
+    marginBottom: 14,
+  },
 };
 
 /** Scrolling within this many px of the Ingredients heading counts as "at the recipe". */
@@ -115,9 +128,18 @@ export default function ArticleRoute() {
     () => (detail?.contentHtml ? tidyArticleHtml(detail.contentHtml) : null),
     [detail],
   );
+  const isRecipe = detail?.type === 'recipe';
   const parts = useMemo(
-    () => (tidied && detail?.type === 'recipe' ? splitAtIngredients(tidied) : null),
-    [tidied, detail],
+    () => (tidied && isRecipe ? splitAtIngredients(tidied) : null),
+    [tidied, isRecipe],
+  );
+  // Shade each recipe <h3> section into a taupe panel. Split parts are boxed on each side of the
+  // signpost; a recipe with no Ingredients split still boxes whole, while posts render flat.
+  const introHtml = useMemo(() => (parts ? boxRecipeSections(parts.intro) : null), [parts]);
+  const recipeHtml = useMemo(() => (parts ? boxRecipeSections(parts.recipe) : null), [parts]);
+  const wholeHtml = useMemo(
+    () => (tidied == null ? '' : isRecipe ? boxRecipeSections(tidied) : tidied),
+    [tidied, isRecipe],
   );
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, layoutMeasurement } = e.nativeEvent;
@@ -271,21 +293,39 @@ export default function ArticleRoute() {
           {parts.intro ? (
             <RenderHtml
               contentWidth={contentWidth}
-              source={{ html: parts.intro }}
+              source={{ html: introHtml ?? '' }}
               baseStyle={BASE_STYLE}
               systemFonts={SYSTEM_FONTS}
               tagsStyles={TAGS_STYLES}
+              classesStyles={CLASSES_STYLES}
               enableExperimentalMarginCollapsing
             />
           ) : null}
-          {/* Direct child of the scroll content container, so layout.y is the scroll target. */}
+          {/* Direct child of the scroll content container, so layout.y is the scroll target.
+              The signpost leads it, so "Jump to Recipe" lands on this "The Recipe" header —
+              a clear break from the blog-post intro into the ingredients/directions. */}
           <View onLayout={(e) => setMarkerY(e.nativeEvent.layout.y)}>
+            <View
+              style={{
+                borderTopWidth: 1,
+                borderTopColor: colors.gray,
+                marginTop: 8,
+                paddingTop: 18,
+                marginBottom: 4,
+              }}
+            >
+              <Eyebrow color={colors.blueBright}>The Recipe</Eyebrow>
+              <Heading size={24} style={{ marginTop: 6, marginBottom: 8 }}>
+                {summary.title}
+              </Heading>
+            </View>
             <RenderHtml
               contentWidth={contentWidth}
-              source={{ html: parts.recipe }}
+              source={{ html: recipeHtml ?? '' }}
               baseStyle={BASE_STYLE}
               systemFonts={SYSTEM_FONTS}
               tagsStyles={TAGS_STYLES}
+              classesStyles={CLASSES_STYLES}
               enableExperimentalMarginCollapsing
             />
           </View>
@@ -293,10 +333,11 @@ export default function ArticleRoute() {
       ) : (
         <RenderHtml
           contentWidth={contentWidth}
-          source={{ html: tidied ?? '' }}
+          source={{ html: wholeHtml }}
           baseStyle={BASE_STYLE}
           systemFonts={SYSTEM_FONTS}
           tagsStyles={TAGS_STYLES}
+          classesStyles={CLASSES_STYLES}
           enableExperimentalMarginCollapsing
         />
       )}

@@ -462,6 +462,45 @@ function AccountBody() {
         </Card>
       </Section>
 
+      {/* Feed content preference */}
+      <Section title="Feed">
+        <Card>
+          <Pressable
+            role="checkbox"
+            aria-checked={state.feedContentPref === 'recipes-only'}
+            accessibilityLabel="Show only recipes, hide articles"
+            onPress={() =>
+              update({
+                feedContentPref: state.feedContentPref === 'recipes-only' ? 'all' : 'recipes-only',
+              })
+            }
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 }}
+          >
+            <View
+              style={{
+                width: 22,
+                height: 22,
+                borderWidth: 2,
+                borderColor: state.feedContentPref === 'recipes-only' ? colors.blueLight : colors.gray,
+                backgroundColor: state.feedContentPref === 'recipes-only' ? colors.blueLight : 'transparent',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {state.feedContentPref === 'recipes-only' ? (
+                <Text style={{ color: colors.blue, fontSize: 13 }}>✓</Text>
+              ) : null}
+            </View>
+            <Text weight="semibold" style={{ fontSize: 15, color: colors.blue }}>
+              Show only recipes
+            </Text>
+          </Pressable>
+          <Text italic style={{ color: fg.tertiary, fontSize: 12, marginTop: 4, lineHeight: 18 }}>
+            Hides articles from your home feed. You’ll still get every new recipe.
+          </Text>
+        </Card>
+      </Section>
+
       {/* Security */}
       <Section title="Password">
         <Field

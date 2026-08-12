@@ -19,6 +19,30 @@ export function tidyArticleHtml(html: string): string {
     .replace(LI_OPENING_BLOCK, (_m, liOpen: string, tag: string) => `${liOpen}<${tag} style="margin-top:0"`);
 }
 
+/** Start of a recipe section heading — `<h3` followed by a space or `>` (not `<h3x`). */
+const H3_SECTION_OPEN = /<h3(?=[\s>])/gi;
+
+/**
+ * Wrap each `<h3>` section of an assembled recipe body (the heading plus everything up to the
+ * next `<h3>` or the end) in `<div class="recipe-section">`, so the reader can shade each one
+ * as a panel via RenderHtml's classesStyles — replicating the site's scannable, boxed recipe
+ * layout. Prose before the first `<h3>` (the blog-post intro) is left unwrapped. Bodies with no
+ * `<h3>` (plain articles) pass through untouched. Pure string transform, like tidyArticleHtml.
+ */
+export function boxRecipeSections(html: string): string {
+  const starts: number[] = [];
+  let m: RegExpExecArray | null;
+  H3_SECTION_OPEN.lastIndex = 0;
+  while ((m = H3_SECTION_OPEN.exec(html)) !== null) starts.push(m.index);
+  if (starts.length === 0) return html;
+  let out = html.slice(0, starts[0]); // intro prose, unboxed
+  for (let i = 0; i < starts.length; i++) {
+    const end = i + 1 < starts.length ? starts[i + 1] : html.length;
+    out += `<div class="recipe-section">${html.slice(starts[i], end)}</div>`;
+  }
+  return out;
+}
+
 /** The assembled recipe body's Ingredients section heading (see la_assemble_recipe_body). */
 const INGREDIENTS_H3 = /<h3[^>]*>\s*Ingredients\s*<\/h3>/i;
 

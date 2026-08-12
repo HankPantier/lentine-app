@@ -30,6 +30,7 @@
 // SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are auto-provisioned in the function runtime.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { type Article, type ContentType, readDoshas, toArticle } from '../_shared/wp-normalize.ts';
 
 const WP_BASE_URL = Deno.env.get('WP_BASE_URL') ?? '';
 const WP_USER = Deno.env.get('WP_USER') ?? '';
@@ -41,7 +42,6 @@ const ENTITLING_STATUSES = ['active', 'trialing'];
 const DEFAULT_PER_PAGE = 10;
 
 type Tier = 'recipe' | 'back_to_forward';
-type ContentType = 'post' | 'recipe';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -173,103 +173,6 @@ async function revalidateArticle(slug: string): Promise<void> {
   await sharedCachePut(`article:${slug}`, src);
 }
 
-const NAMED_ENTITIES: Record<string, string> = {
-  amp: '&',
-  nbsp: ' ',
-  hellip: '…',
-  ndash: '–',
-  mdash: '—',
-  lsquo: '‘',
-  rsquo: '’',
-  ldquo: '“',
-  rdquo: '”',
-  quot: '"',
-};
-
-/** Strip tags, decode entities, collapse whitespace — plain text for cards. */
-function stripHtml(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, '')
-    .replace(/&#(\d+);/g, (_, n: string) => String.fromCodePoint(Number(n)))
-    .replace(/&([a-z]+);/gi, (m: string, name: string) => NAMED_ENTITIES[name.toLowerCase()] ?? m)
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/**
- * A card-ready excerpt. WooCommerce Memberships appends its purchase pitch ("To access this
- * content, you must purchase Recipe Club Subscription – Monthly, …") to every restricted
- * excerpt — pure noise on a card (the lock badge already communicates gating) and it shows
- * even to entitled members. Cut it.
- */
-function cardExcerpt(html: string): string {
-  return stripHtml(html)
-    .replace(/\s*To access this (content|post|recipe)\b.*$/i, '')
-    .trim();
-}
-
-/** Normalize the per-item `visibility` REST field to the app's two values; default `paid` (fail safe). */
-function readVisibility(post: { visibility?: unknown }): 'free' | 'paid' {
-  return post?.visibility === 'free' ? 'free' : 'paid';
-}
-
-/**
- * The category label for a card. Posts carry it via the embedded `category` taxonomy term;
- * recipes have no taxonomy — their category is the ACF `category` field exposed by the mu-plugin
- * (a label string or an array of labels).
- */
-// deno-lint-ignore no-explicit-any
-function readCategory(post: any, type: ContentType): string | null {
-  if (type === 'recipe') {
-    const c = post?.category;
-    if (Array.isArray(c)) return (c[0] as string | undefined) ?? null;
-    return (typeof c === 'string' && c) ? c : null;
-  }
-  const term = post?._embedded?.['wp:term']?.flat?.().find?.((t: any) => t?.taxonomy === 'category');
-  return (term?.name as string | undefined) ?? null;
-}
-
-/**
- * A bounded image for a ~180-200pt card/hero — the originals are 2560px multi-MB "-scaled"
- * uploads (the feed shipped 6.4 MB of images for 12 cards). `_embed` already includes the
- * generated sizes; fall back to the original only when WP made no intermediate sizes (small
- * uploads, SVGs, disabled thumbnails).
- */
-// deno-lint-ignore no-explicit-any
-function bestImage(media: any): string | null {
-  const sizes = media?.media_details?.sizes;
-  return (
-    (sizes?.medium_large?.source_url as string | undefined) ?? // 768w — plenty at 2-3x DPR
-    (sizes?.large?.source_url as string | undefined) ?? // 1024w
-    (media?.source_url as string | undefined) ??
-    null
-  );
-}
-
-/** Normalize a WP REST post/recipe (fetched with _embed) into the app's Article shape. */
-// deno-lint-ignore no-explicit-any
-function toArticle(post: any, type: ContentType) {
-  const media = post?._embedded?.['wp:featuredmedia']?.[0];
-  return {
-    id: post.id as number,
-    slug: post.slug as string,
-    type,
-    visibility: readVisibility(post),
-    title: stripHtml(post?.title?.rendered ?? ''),
-    excerpt: cardExcerpt(post?.excerpt?.rendered ?? ''),
-    image: bestImage(media),
-    category: readCategory(post, type),
-    date: post.date as string,
-    link: post.link as string,
-    // Lowercased ACF dosha tags (recipes; posts have none) — drives the home
-    // "For your <Dosha>" section client-side.
-    dosha: readDoshas(post),
-    // Lowercased ACF season tags (recipes; posts have none) — drives the home feed's
-    // season-aware default order and the SEASON/DOSHA meta lines client-side.
-    season: readSeasons(post),
-  };
-}
-
 /** Whether `tier` unlocks an item. Mirrors the app's entitlement.canAccess EXACTLY — keep in sync. */
 function canUnlock(type: ContentType, visibility: 'free' | 'paid', tier: Tier | null): boolean {
   if (visibility === 'free') return true;
@@ -306,60 +209,35 @@ async function resolveTier(authHeader: string | null): Promise<Tier | null> {
   return slug === 'recipe' || slug === 'back_to_forward' ? slug : null;
 }
 
-/** The recipe's dosha labels, lowercased (ACF `dosha` array field, e.g. ["Vata","Pitta"]). */
-// deno-lint-ignore no-explicit-any
-function readDoshas(post: any): string[] {
-  const d = post?.dosha;
-  return Array.isArray(d) ? d.map((x: unknown) => String(x).toLowerCase()) : [];
-}
-
-/** The recipe's season labels, lowercased (ACF `season` array field, e.g. ["Spring","Fall"]). */
-// deno-lint-ignore no-explicit-any
-function readSeasons(post: any): string[] {
-  const s = post?.season;
-  return Array.isArray(s) ? s.map((x: unknown) => String(x).toLowerCase()) : [];
-}
-
-/**
- * Only what toArticle() reads. Searches trim the response with scoped `_embed` + `_fields`
- * (~half the payload of a full `_embed=1` and less origin assembly work — WP can't filter
- * INSIDE `_embedded`, so the media object still arrives whole).
- */
-const SEARCH_FIELDS =
-  'id,slug,title,excerpt,date,link,visibility,category,dosha,season,_links,_embedded';
-
-/** Fetch the most recent items of a post type (optionally matching `search`), normalized; [] on any WP error. */
-async function fetchType(type: ContentType, perPage: number, search?: string) {
+/** Fetch the most recent items of a post type, normalized; [] on any WP error. */
+async function fetchType(type: ContentType, perPage: number) {
   const base = type === 'recipe' ? 'recipe' : 'posts';
-  const embed = search ? `_embed=wp:featuredmedia,wp:term&_fields=${SEARCH_FIELDS}` : '_embed=1';
-  const searchParam = search ? `&search=${encodeURIComponent(search)}` : '';
-  const res = await fetch(wpUrl(`${base}?${embed}&per_page=${perPage}&orderby=date&order=desc${searchParam}`));
+  const res = await fetch(wpUrl(`${base}?_embed=1&per_page=${perPage}&orderby=date&order=desc`));
   if (!res.ok) return [];
   const items = await res.json();
   return Array.isArray(items) ? items.map((p) => toArticle(p, type)) : [];
 }
 
 /**
- * Full-catalog search at the WordPress origin: both post types in parallel, merged
- * newest-first. 10 per type is plenty for a search surface and halves origin work.
+ * Full-catalog search against the synced content_index (Postgres FTS via PostgREST). Fast
+ * (tens of ms), always current to the last sync-content run, and — unlike the old WP
+ * `?search=` — matches recipe ingredients/instructions (indexed in search_text). Returns the
+ * stored app Article summaries, newest-first. [] on any error (the caller shows a retry).
  */
-async function searchOrigin(query: string, perPage: number) {
-  const per = Math.min(perPage, 10);
-  const [posts, recipes] = await Promise.all([
-    fetchType('post', per, query),
-    fetchType('recipe', per, query),
-  ]);
-  return [...posts, ...recipes]
-    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
-    .slice(0, perPage);
-}
-
-/** Re-run a search against WordPress and refresh the shared cache (background revalidation). */
-async function revalidateSearch(query: string, perPage: number, cacheKey: string): Promise<void> {
-  const articles = await searchOrigin(query, perPage);
-  // A transient WP failure yields [] here and would pin an empty result for the fresh
-  // window — tolerable for a search (heals on the next revalidation), unlike article bodies.
-  await sharedCachePut(cacheKey, { articles });
+async function searchIndex(query: string, perPage: number): Promise<Article[]> {
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) return [];
+  try {
+    const { data, error } = await adminClient()
+      .from('content_index')
+      .select('summary')
+      .textSearch('search_tsv', query, { type: 'websearch', config: 'english' })
+      .order('date', { ascending: false })
+      .limit(perPage);
+    if (error || !data) return [];
+    return data.map((r) => r.summary as Article);
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -417,12 +295,11 @@ Deno.serve(async (req) => {
   }
 
   // --- search (public): full-catalog posts + recipes matching the query, newest-first ---
-  // WP REST `?search=` covers title/excerpt/content for posts; recipe bodies live in ACF,
-  // so recipes match on title/excerpt only. Date order (not WP relevance) — relevance
-  // scores aren't comparable across the two post-type queries, and date matches the feed.
-  // Fresh origin searches cost seconds, so results layer three caches: warm isolate (60s)
-  // → shared cross-isolate table (SWR: serve <10min fresh, serve-stale + background
-  // revalidate up to 24h) → origin. Payloads are public summaries — safe to share.
+  // Backed by the synced content_index (Postgres FTS), NOT WP `?search=`: fast (tens of ms),
+  // always current to the last sync-content run, and matches recipe ingredients/instructions
+  // (which the old WP search couldn't — recipe bodies live in ACF). The index IS the cache, so
+  // the shared wp_content_cache SWR is no longer needed here; a 60s warm-isolate response cache
+  // still dedupes bursts of the same query. Payloads are public summaries only.
   if (body.action === 'search') {
     const query = String(body.query ?? '').trim();
     if (query.length < 2) return json({ error: 'query too short' }, 400);
@@ -430,13 +307,7 @@ Deno.serve(async (req) => {
     const cacheKey = `search:${query.toLowerCase()}:${perPage}`;
     const cached = cachedResponse(cacheKey);
     if (cached) return cached;
-    const shared = await sharedCacheGet(cacheKey);
-    if (shared) {
-      if (!shared.fresh) inBackground(revalidateSearch(query, perPage, cacheKey));
-      return cacheAndRespond(cacheKey, shared.payload);
-    }
-    const articles = await searchOrigin(query, perPage);
-    inBackground(sharedCachePut(cacheKey, { articles }));
+    const articles = await searchIndex(query, perPage);
     return cacheAndRespond(cacheKey, { articles });
   }
 
@@ -460,6 +331,20 @@ Deno.serve(async (req) => {
       .slice(0, perPage)
       .map((p) => toArticle(p, 'recipe'));
     return cacheAndRespond(cacheKey, { articles });
+  }
+
+  // --- foundations (public): editable per-dosha "Today, for you" copy from WordPress ---
+  // Proxies the mu-plugin's la/v1/dosha-foundations route (ACF options). The app falls back to
+  // its bundled placeholder copy per dosha when a field is empty, so a missing/failed fetch just
+  // returns {} and the app looks unchanged. Cached 60s like the other public actions.
+  if (body.action === 'foundations') {
+    const cacheKey = 'foundations';
+    const cached = cachedResponse(cacheKey);
+    if (cached) return cached;
+    const res = await fetch(`${WP_BASE_URL}/wp-json/la/v1/dosha-foundations`);
+    if (!res.ok) return json({ foundations: {} });
+    const data = await res.json().catch(() => ({}));
+    return cacheAndRespond(cacheKey, { foundations: data ?? {} });
   }
 
   // --- article (tier-gated) ---

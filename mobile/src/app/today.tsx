@@ -4,7 +4,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { AppHeader, ArticleCard, Button, Eyebrow, Heading, Screen, Text } from '@/components';
 import { DOSHA_CONTENT, type ContentItem } from '@/content/dosha-content';
 import { setArticlePreview } from '@/lib/article-preview';
-import { type Article, fetchToday } from '@/lib/articles';
+import { type Article, type Foundations, fetchFoundations, fetchToday } from '@/lib/articles';
 import { canAccess, entitledTier } from '@/lib/entitlement';
 import { useOnboarding } from '@/onboarding/state';
 import { DOSHA } from '@/quiz/doshas';
@@ -58,6 +58,19 @@ export default function TodayRoute() {
     setAttempt((n) => n + 1);
   };
 
+  // Editable per-dosha focus copy from WordPress; falls back to the bundled placeholder.
+  const [foundations, setFoundations] = useState<Foundations>({});
+  useEffect(() => {
+    let active = true;
+    fetchFoundations().then(
+      (f) => active && setFoundations(f),
+      () => active && setFoundations({}),
+    );
+    return () => {
+      active = false;
+    };
+  }, []);
+
   if (!dosha) {
     return (
       <Screen>
@@ -80,6 +93,7 @@ export default function TodayRoute() {
 
   const d = DOSHA[dosha];
   const content = DOSHA_CONTENT[dosha];
+  const focusText = foundations[dosha]?.focus || content.focus;
 
   return (
     <Screen padding={0}>
@@ -96,7 +110,7 @@ export default function TodayRoute() {
           </Text>
         </Heading>
         <Text style={{ color: fg.onDarkSecondary, fontSize: 15, lineHeight: 23, marginTop: 12 }}>
-          {content.focus}
+          {focusText}
         </Text>
       </View>
 

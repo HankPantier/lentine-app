@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { type KeyboardTypeOptions, TextInput, View } from 'react-native';
+import { type KeyboardTypeOptions, Pressable, TextInput, View } from 'react-native';
 import { colors, fg, fonts, radii } from '@/theme/tokens';
 import { Eyebrow } from './Eyebrow';
 import { Text } from './Text';
@@ -39,6 +39,10 @@ export function Field({
   autoFocus,
 }: Props) {
   const [focused, setFocused] = useState(false);
+  // Password fields start masked; the eye toggle reveals. Only rendered when secureTextEntry
+  // is set, so non-password fields are untouched.
+  const [revealed, setRevealed] = useState(false);
+  const isPassword = !!secureTextEntry;
   const borderColor = error ? colors.red : focused ? colors.blueLight : colors.gray;
 
   return (
@@ -46,30 +50,55 @@ export function Field({
       <Eyebrow light={dark} style={{ marginBottom: 6 }}>
         {label}
       </Eyebrow>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={fg.tertiary}
-        secureTextEntry={secureTextEntry}
-        keyboardType={keyboardType}
-        autoCapitalize={autoCapitalize}
-        autoComplete={autoComplete}
-        autoFocus={autoFocus}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        style={{
-          fontFamily: fonts.regular,
-          fontSize: 16, // 16px avoids iOS zoom-on-focus
-          color: colors.blue,
-          backgroundColor: colors.white,
-          borderWidth: 1,
-          borderColor,
-          borderRadius: radii.sharp,
-          paddingHorizontal: 14,
-          paddingVertical: 13,
-        }}
-      />
+      {/* Relative wrapper so the reveal toggle positions against the input alone (not the
+          label/hint), matching the SearchBar's clear-button treatment. */}
+      <View>
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={fg.tertiary}
+          secureTextEntry={isPassword && !revealed}
+          keyboardType={keyboardType}
+          autoCapitalize={autoCapitalize}
+          autoComplete={autoComplete}
+          autoFocus={autoFocus}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          style={{
+            fontFamily: fonts.regular,
+            fontSize: 16, // 16px avoids iOS zoom-on-focus
+            color: colors.blue,
+            backgroundColor: colors.white,
+            borderWidth: 1,
+            borderColor,
+            borderRadius: radii.sharp,
+            paddingVertical: 13,
+            paddingLeft: 14,
+            paddingRight: isPassword ? 58 : 14, // room for the Show/Hide toggle
+          }}
+        />
+        {isPassword ? (
+          <Pressable
+            onPress={() => setRevealed((v) => !v)}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel={revealed ? 'Hide password' : 'Show password'}
+            style={{ position: 'absolute', right: 12, top: 0, bottom: 0, justifyContent: 'center' }}
+          >
+            <Text
+              style={{
+                fontSize: 11,
+                letterSpacing: 0.5,
+                textTransform: 'uppercase',
+                color: colors.blueBright,
+              }}
+            >
+              {revealed ? 'Hide' : 'Show'}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
       {error ? (
         <Text italic style={{ color: colors.red, fontSize: 12, marginTop: 4 }}>
           {error}

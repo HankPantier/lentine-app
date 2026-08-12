@@ -124,6 +124,28 @@ add_action(
 			);
 		}
 
+		// Searchable recipe text (ingredient/instruction/notes body, tags stripped) for the
+		// content_index sync. AUTH-ONLY: ingredient text stays off the PUBLIC REST surface (the
+		// paywall gates full recipes) - returned only to a privileged caller (the edge function's
+		// Application-Password admin). Reuses the cached assembled body, so it costs nothing extra
+		// after the transient warms. Anonymous reads get '' (recipes still index on title/excerpt/
+		// tags). A space is injected before each tag so adjacent list items don't fuse.
+		register_rest_field(
+			'recipe',
+			'search_text',
+			array(
+				'get_callback' => function ( $obj ) {
+					if ( ! current_user_can( 'manage_options' ) ) {
+						return '';
+					}
+					$body = la_cached_recipe_body( $obj['id'] );
+					$text = wp_strip_all_tags( str_replace( '<', ' <', $body ) );
+					return trim( preg_replace( '/\s+/', ' ', $text ) );
+				},
+				'schema'       => array( 'type' => 'string' ),
+			)
+		);
+
 		// Auth-only: the assembled recipe body. Kept off the public REST surface so the gate
 		// stays server-side — the app's edge function calls this with the WP Application Password,
 		// and decides entitlement via the caller's Supabase tier before ever requesting it.
@@ -281,3 +303,93 @@ function la_assemble_recipe_body( $post_id ) {
 
 	return $html;
 }
+
+/**
+ * Editable per-dosha "Today, for you" foundational copy, surfaced by the app's home teaser and
+ * /today hero. Stored in an ACF options page ("Dosha Foundations") so Lentine can edit it in
+ * wp-admin; the app falls back to bundled placeholder copy when a field is empty. PUBLIC route
+ * (short summary copy only -- no gated content).
+ */
+add_action(
+	'rest_api_init',
+	function () {
+		register_rest_route(
+			'la/v1',
+			'/dosha-foundations',
+			array(
+				'methods'             => 'GET',
+				'permission_callback' => '__return_true',
+				'callback'            => 'la_dosha_foundations_route',
+			)
+		);
+	}
+);
+
+/** REST callback: per-dosha foundational copy from the ACF options page ('' when unset). */
+function la_dosha_foundations_route() {
+	$out = array();
+	foreach ( array( 'vata', 'pitta', 'kapha' ) as $dosha ) {
+		$focus         = function_exists( 'get_field' ) ? get_field( "foundation_focus_{$dosha}", 'option' ) : '';
+		$out[ $dosha ] = array( 'focus' => is_string( $focus ) ? $focus : '' );
+	}
+	return $out;
+}
+
+// The "Dosha Foundations" options page + its fields, defined in code so they ship ready to fill
+// (no ACF UI setup). Requires ACF Pro, already in use for the recipe repeaters.
+add_action(
+	'acf/init',
+	function () {
+		if ( function_exists( 'acf_add_options_page' ) ) {
+			acf_add_options_page(
+				array(
+					'page_title' => 'Dosha Foundations',
+					'menu_title' => 'Dosha Foundations',
+					'menu_slug'  => 'dosha-foundations',
+					'capability' => 'edit_posts',
+					'redirect'   => false,
+				)
+			);
+		}
+		if ( function_exists( 'acf_add_local_field_group' ) ) {
+			acf_add_local_field_group(
+				array(
+					'key'      => 'group_la_dosha_foundations',
+					'title'    => 'Dosha Foundations',
+					'fields'   => array(
+						array(
+							'key'   => 'field_la_foundation_focus_vata',
+							'label' => 'Vata focus',
+							'name'  => 'foundation_focus_vata',
+							'type'  => 'textarea',
+							'rows'  => 3,
+						),
+						array(
+							'key'   => 'field_la_foundation_focus_pitta',
+							'label' => 'Pitta focus',
+							'name'  => 'foundation_focus_pitta',
+							'type'  => 'textarea',
+							'rows'  => 3,
+						),
+						array(
+							'key'   => 'field_la_foundation_focus_kapha',
+							'label' => 'Kapha focus',
+							'name'  => 'foundation_focus_kapha',
+							'type'  => 'textarea',
+							'rows'  => 3,
+						),
+					),
+					'location' => array(
+						array(
+							array(
+								'param'    => 'options_page',
+								'operator' => '==',
+								'value'    => 'dosha-foundations',
+							),
+						),
+					),
+				)
+			);
+		}
+	}
+);

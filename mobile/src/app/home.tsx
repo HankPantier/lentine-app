@@ -4,7 +4,7 @@ import { ActivityIndicator, Animated, Platform, Pressable, ScrollView, TextInput
 import { AppHeader, ArticleCard, Button, Eyebrow, Heading, Screen, Text } from '@/components';
 import { DOSHA_CONTENT } from '@/content/dosha-content';
 import { setArticlePreview } from '@/lib/article-preview';
-import { type Article, fetchArticles, searchArticles } from '@/lib/articles';
+import { type Article, type Foundations, fetchArticles, fetchFoundations, searchArticles } from '@/lib/articles';
 import { canAccess, entitledTier } from '@/lib/entitlement';
 import { applyFeedFilter, type FeedFilter, feedCategories } from '@/lib/feed-filters';
 import { sinkOutOfSeason, splitByDosha } from '@/lib/feed-sections';
@@ -220,7 +220,7 @@ export default function HomeRoute() {
   const [orderMode, setOrderMode] = useState<'seasonal' | 'recent'>('seasonal');
   useEffect(() => {
     let active = true;
-    fetchArticles(12).then(
+    fetchArticles(24).then(
       (a) => {
         if (!active) return;
         setArticles(a);
@@ -237,6 +237,21 @@ export default function HomeRoute() {
     setArticles(null);
     setFeedAttempt((n) => n + 1);
   };
+
+  // Editable per-dosha "Today, for you" copy from WordPress; falls back to bundled placeholder
+  // copy when empty or unreachable (best-effort — never blocks or errors the feed).
+  const [foundations, setFoundations] = useState<Foundations>({});
+  useEffect(() => {
+    let active = true;
+    fetchFoundations().then(
+      (f) => active && setFoundations(f),
+      () => active && setFoundations({}),
+    );
+    return () => {
+      active = false;
+    };
+  }, []);
+  const focusText = (hasDosha && foundations[key]?.focus) || DOSHA_CONTENT[key].focus;
 
   // Full-catalog search. rawQuery mirrors the input; debouncedQuery (normalized) is what
   // actually gets fetched — null means "not searching". While a query is active the feed
@@ -309,10 +324,16 @@ export default function HomeRoute() {
     const sorted = byDateDesc(sectioned ? rest : articles);
     return orderMode === 'seasonal' ? sinkOutOfSeason(sorted, season) : sorted;
   }, [articles, sectioned, rest, orderMode, season]);
-  const filteredRest = useMemo(
-    () => (restPool ? applyFeedFilter(restPool, filter) : null),
-    [restPool, filter],
-  );
+  // The saved "recipes only" preference acts as the feed's default filter; an explicit chip
+  // choice (e.g. tapping Articles) overrides it for the session.
+  const filteredRest = useMemo(() => {
+    if (!restPool) return null;
+    const effective: FeedFilter =
+      state.feedContentPref === 'recipes-only' && filter.kind === 'all'
+        ? { kind: 'type', value: 'recipe' }
+        : filter;
+    return applyFeedFilter(restPool, effective);
+  }, [restPool, filter, state.feedContentPref]);
   const categories = useMemo(() => feedCategories(restPool ?? []), [restPool]);
 
   // Chip taps. Recent resets; picking an already-selected value toggles back to everything.
@@ -399,7 +420,7 @@ export default function HomeRoute() {
             <Card>
               <Text style={{ color: colors.blue, fontSize: 15, lineHeight: 23 }}>
                 {hasDosha
-                  ? DOSHA_CONTENT[key].focus
+                  ? focusText
                   : 'Your rituals and recipes appear here once you’ve found your dosha.'}
               </Text>
               <Text
@@ -421,6 +442,13 @@ export default function HomeRoute() {
         {/* Latest from Lentine — real posts + recipes pulled from WordPress. Items matching
             the member's dosha lead in their own flagged section; the rest goes compact. */}
         <View>
+          {/* Section header marking where the content feed begins — the counterpart to the
+              hero's "Your day begins". Hidden during search (the results get their own label). */}
+          {!searchMode ? (
+            <Heading size={22} style={{ marginBottom: 12 }}>
+              Latest
+            </Heading>
+          ) : null}
           <SearchBar value={rawQuery} onChangeText={setRawQuery} onSubmit={submitSearch} onClear={clearSearch} />
           {searchMode ? (
             <>
@@ -486,29 +514,20 @@ export default function HomeRoute() {
               )}
             </>
           ) : feedFailed ? (
-            <>
-              <Eyebrow style={{ marginBottom: 8 }}>Latest from Lentine</Eyebrow>
-              <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18 }}>
-                <Text style={{ color: fg.secondary, fontSize: 14, lineHeight: 21 }}>
-                  Couldn&rsquo;t load articles right now.
-                </Text>
-                <Button label="Try again" size="sm" onPress={retryFeed} style={{ marginTop: 12 }} />
-              </View>
-            </>
+            <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18 }}>
+              <Text style={{ color: fg.secondary, fontSize: 14, lineHeight: 21 }}>
+                Couldn&rsquo;t load articles right now.
+              </Text>
+              <Button label="Try again" size="sm" onPress={retryFeed} style={{ marginTop: 12 }} />
+            </View>
           ) : restPool === null || filteredRest === null ? (
-            <>
-              <Eyebrow style={{ marginBottom: 8 }}>Latest from Lentine</Eyebrow>
-              <View style={{ paddingVertical: 24, alignItems: 'center' }}>
-                <ActivityIndicator color={colors.blue} />
-              </View>
-            </>
+            <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+              <ActivityIndicator color={colors.blue} />
+            </View>
           ) : restPool.length === 0 && !sectioned ? (
-            <>
-              <Eyebrow style={{ marginBottom: 8 }}>Latest from Lentine</Eyebrow>
-              <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18 }}>
-                <Text style={{ color: fg.secondary, fontSize: 14 }}>Nothing published just yet — check back soon.</Text>
-              </View>
-            </>
+            <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18 }}>
+              <Text style={{ color: fg.secondary, fontSize: 14 }}>Nothing published just yet — check back soon.</Text>
+            </View>
           ) : (
             <>
               {sectioned ? (
@@ -531,9 +550,7 @@ export default function HomeRoute() {
                     <Eyebrow style={{ marginTop: 24, marginBottom: 8 }}>More from Lentine</Eyebrow>
                   ) : null}
                 </>
-              ) : (
-                <Eyebrow style={{ marginBottom: 8 }}>Latest from Lentine</Eyebrow>
-              )}
+              ) : null}
               {restPool.length > 1 ? (
                 <View style={{ marginBottom: 12 }}>
                   {/* Primary chips: Recent shows everything newest-first (dropping the seasonal

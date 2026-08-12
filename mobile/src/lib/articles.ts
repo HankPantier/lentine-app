@@ -107,6 +107,23 @@ export function searchArticles(query: string, perPage = 20): Promise<Article[]> 
   );
 }
 
+/** Per-dosha foundational copy for the "Today, for you" surface, editable in WordPress. */
+export interface DoshaFoundation {
+  focus: string;
+}
+export type Foundations = Partial<Record<'vata' | 'pitta' | 'kapha', DoshaFoundation>>;
+
+/**
+ * Editable per-dosha "Today, for you" copy from WordPress (ACF options). Public + cached. The
+ * caller falls back to the app's bundled placeholder copy per dosha, so an empty field or a
+ * failed fetch simply leaves the placeholder in place — never an error surface.
+ */
+export function fetchFoundations(): Promise<Foundations> {
+  return cached('foundations', TTL_MS, () =>
+    invokeArticles({ action: 'foundations' }, (d) => d?.foundations as Foundations | undefined),
+  );
+}
+
 /**
  * A single article by slug. supabase-js attaches the signed-in user's JWT to the invoke, so
  * the function can verify entitlement and return the full body to paid members. Cached in
