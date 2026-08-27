@@ -1,3 +1,4 @@
+import { EvilIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -436,14 +437,17 @@ export default function HomeRoute() {
           </View>
         ) : null}
 
-        {/* Quick actions — quiet rounded tiles into the member's key surfaces. */}
+        {/* Quick actions — quiet rounded tiles into the member's key surfaces. Line-art icons
+            carry the dosha accent; the label sits below in the small-caps voice. */}
         <View style={{ flexDirection: 'row', gap: 10 }}>
-          {[
-            { label: 'Today', onPress: () => router.push('/today') },
-            { label: 'Favorites', onPress: () => router.push('/favorites') },
-            { label: 'Membership', onPress: () => router.push('/membership') },
-            { label: 'Profile', onPress: () => router.push('/account') },
-          ].map((it) => (
+          {(
+            [
+              { label: 'Today', icon: 'calendar', onPress: () => router.push('/today') },
+              { label: 'Favorites', icon: 'heart', onPress: () => router.push('/favorites') },
+              { label: 'Membership', icon: 'trophy', onPress: () => router.push('/membership') },
+              { label: 'Profile', icon: 'user', onPress: () => router.push('/account') },
+            ] as const
+          ).map((it) => (
             <Pressable
               key={it.label}
               onPress={it.onPress}
@@ -456,18 +460,15 @@ export default function HomeRoute() {
                 borderWidth: 1,
                 borderColor: colors.gray,
                 borderRadius: radii.media,
-                paddingVertical: 16,
+                paddingVertical: 15,
                 ...elevation.card,
               }}
             >
-              <View
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: 3,
-                  backgroundColor: hasDosha ? d.accent : colors.blueLight,
-                  marginBottom: 8,
-                }}
+              <EvilIcons
+                name={it.icon}
+                size={30}
+                color={hasDosha ? d.accent : colors.blueLight}
+                style={{ marginBottom: 4 }}
               />
               <Text
                 italic
