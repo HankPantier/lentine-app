@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native';
 import RenderHtml, { type MixedStyleRecord } from 'react-native-render-html';
 import type { RecipeStructured } from '@/lib/articles';
 import { ingredientKey } from '@/lib/cook-state';
-import { colors, fg, fonts } from '@/theme/tokens';
+import { colors, fg, fonts, rhythm } from '@/theme/tokens';
 import { Button } from './Button';
 import { Text } from './Text';
 
@@ -61,10 +61,8 @@ function SectionCard({
         backgroundColor: colors.white,
         borderWidth: 1,
         borderColor: colors.gray,
-        paddingHorizontal: 18,
-        paddingTop: 18,
-        paddingBottom: 20,
-        marginBottom: 14,
+        padding: rhythm.card,
+        marginBottom: 18,
       }}
     >
       <View

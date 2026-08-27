@@ -60,12 +60,44 @@ export const spacing = {
   xxxl: 48,
 } as const;
 
+/**
+ * Vertical rhythm — the app's "room to breathe" system. Codifies the generous editorial
+ * spacing the brand calls for (≈2rem section rhythm, airy heros) in one place so it can be
+ * tuned globally. Prefer these over ad-hoc literals for section gaps, card interiors, hero
+ * padding, and the gap between a section label and its content.
+ */
+export const rhythm = {
+  screenX: 24, // horizontal screen gutter
+  section: 28, // gap between major content sections — the primary breathing-room lever
+  card: 20, // interior padding of content cards
+  label: 10, // eyebrow / section heading → its content
+  heroTop: 32, // hero top padding, below the header
+  heroBottom: 36, // hero bottom padding
+} as const;
+
 export const radii = {
-  /** Sharp corners everywhere except buttons — deliberate editorial choice. */
+  /** Sharp corners on the hairline info-cards — deliberate editorial choice. */
   sharp: 0,
   /** ~0.3rem softening on buttons only. */
   button: 5,
+  /** Softened corners for imagery & photographic hero cards (the "hybrid" premium radius). */
+  media: 12,
   pill: 999,
+} as const;
+
+/**
+ * Subtle card elevation. The brand is otherwise flat/editorial; this whisper of a
+ * navy-tinted shadow lifts content surfaces off the taupe for a premium, layered feel.
+ * RN maps shadow* → boxShadow on web and uses `elevation` on Android.
+ */
+export const elevation = {
+  card: {
+    shadowColor: colors.blue,
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
+  },
 } as const;
 
 export const lineHeight = {

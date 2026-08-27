@@ -1,13 +1,16 @@
 export { AppHeader, BackGlyph, HEADER_GAP } from './AppHeader';
 export { ArticleCard } from './ArticleCard';
 export { Button, type ButtonSize, type ButtonVariant } from './Button';
+export { Card } from './Card';
 export { CollapsibleHtml } from './CollapsibleHtml';
 export { CookMode } from './CookMode';
 export { Eyebrow } from './Eyebrow';
 export { FavoriteButton } from './FavoriteButton';
 export { Field } from './Field';
+export { GradientScrim } from './GradientScrim';
 export { Heading } from './Heading';
 export { JumpToRecipePill } from './JumpToRecipePill';
+export { LockGlyph } from './LockGlyph';
 export { OptionCard } from './OptionCard';
 export { ProgressDots } from './ProgressDots';
 export { RecipeBody } from './RecipeBody';

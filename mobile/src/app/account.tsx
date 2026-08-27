@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { type ReactNode, useEffect, useState } from 'react';
 import { AppState, Platform, Pressable, View } from 'react-native';
-import { AppHeader, Button, Eyebrow, Field, Heading, Screen, Text } from '@/components';
+import { AppHeader, Button, Card, Eyebrow, Field, Heading, Screen, Text } from '@/components';
 import { MANAGE_ON_WEB_URL, manageReturnUrl, openManageSubscription } from '@/lib/billing';
 import { clearContentCache } from '@/lib/content-cache';
 import { formatLongDate } from '@/lib/format';
@@ -16,7 +16,7 @@ import { TIER_NAME } from '@/onboarding/pricing';
 import { useOnboarding } from '@/onboarding/state';
 import { supabase } from '@/lib/supabase';
 import { DOSHA } from '@/quiz/doshas';
-import { colors, fg } from '@/theme/tokens';
+import { colors, fg, rhythm } from '@/theme/tokens';
 
 const STATUS_LABEL: Record<string, string> = {
   active: 'Active',
@@ -27,16 +27,8 @@ const STATUS_LABEL: Record<string, string> = {
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <View style={{ marginTop: 28 }}>
-      <Eyebrow style={{ marginBottom: 12 }}>{title}</Eyebrow>
-      {children}
-    </View>
-  );
-}
-
-function Card({ children }: { children: ReactNode }) {
-  return (
-    <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 16 }}>
+    <View style={{ marginTop: rhythm.section }}>
+      <Eyebrow style={{ marginBottom: rhythm.label }}>{title}</Eyebrow>
       {children}
     </View>
   );

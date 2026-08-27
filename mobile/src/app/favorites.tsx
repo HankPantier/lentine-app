@@ -4,7 +4,7 @@ import { AppHeader, ArticleCard, Button, Eyebrow, Heading, Screen, Text } from '
 import { setArticlePreview } from '@/lib/article-preview';
 import { canAccess, entitledTier } from '@/lib/entitlement';
 import { useOnboarding } from '@/onboarding/state';
-import { colors, fg } from '@/theme/tokens';
+import { colors, fg, rhythm } from '@/theme/tokens';
 
 /**
  * The member's saved recipes, newest save first. Renders entirely from local state (each
@@ -36,13 +36,13 @@ export default function FavoritesRoute() {
             borderWidth: 1,
             borderColor: colors.blueLight,
             borderStyle: 'dashed',
-            padding: 18,
+            padding: rhythm.card,
           }}
         >
-          <Eyebrow color={colors.blueBright} style={{ marginBottom: 6 }}>
+          <Eyebrow color={colors.blueBright} style={{ marginBottom: rhythm.label }}>
             Nothing saved yet
           </Eyebrow>
-          <Text style={{ color: fg.secondary, fontSize: 14, lineHeight: 21 }}>
+          <Text style={{ color: fg.secondary, fontSize: 14, lineHeight: 22 }}>
             No favorites yet — tap the ♡ on any recipe to keep it here.
           </Text>
           <Button

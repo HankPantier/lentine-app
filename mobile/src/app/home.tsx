@@ -1,7 +1,8 @@
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
-import { AppHeader, ArticleCard, Button, Eyebrow, Heading, Screen, Text } from '@/components';
+import { AppHeader, ArticleCard, Button, Eyebrow, GradientScrim, Heading, Screen, Text } from '@/components';
 import { DOSHA_CONTENT } from '@/content/dosha-content';
 import { setArticlePreview } from '@/lib/article-preview';
 import { type Article, type Foundations, fetchArticles, fetchFoundations, searchArticles } from '@/lib/articles';
@@ -14,7 +15,7 @@ import { currentSeason } from '@/lib/season';
 import { TIER_NAME } from '@/onboarding/pricing';
 import { useOnboarding } from '@/onboarding/state';
 import { DOSHA } from '@/quiz/doshas';
-import { colors, fg, fonts, radii } from '@/theme/tokens';
+import { colors, elevation, fg, fonts, radii, rhythm } from '@/theme/tokens';
 
 const SNOOZE_MS = 3 * 24 * 60 * 60 * 1000; // re-show the quiz nudge ~3 days after dismissal
 
@@ -39,6 +40,12 @@ const TYPE_VALUES: { label: string; filter: FeedFilter }[] = [
   { label: 'Kapha', filter: { kind: 'dosha', value: 'kapha' } },
 ];
 
+/** The search-results type filter row: everything, or narrow to a single content type. */
+const SEARCH_TYPE_VALUES: { label: string; filter: FeedFilter }[] = [
+  { label: 'Recipes', filter: { kind: 'type', value: 'recipe' } },
+  { label: 'Articles', filter: { kind: 'type', value: 'post' } },
+];
+
 function sameFilter(a: FeedFilter, b: FeedFilter): boolean {
   if (a.kind !== b.kind) return false;
   return a.kind === 'all' || (a as { value: string }).value === (b as { value: string }).value;
@@ -56,14 +63,6 @@ function greeting(): string {
   if (h < 12) return 'Good morning';
   if (h < 18) return 'Good afternoon';
   return 'Good evening';
-}
-
-function Card({ children }: { children: React.ReactNode }) {
-  return (
-    <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18 }}>
-      {children}
-    </View>
-  );
 }
 
 /** One feed filter chip — the same navy-when-selected pill for group and value rows. */
@@ -262,6 +261,8 @@ export default function HomeRoute() {
   const [results, setResults] = useState<Article[] | null>(null);
   const [searchFailed, setSearchFailed] = useState(false);
   const [searchAttempt, setSearchAttempt] = useState(0);
+  // Client-side type narrowing for the results list (All / Recipes / Articles). Resets on clear.
+  const [searchFilter, setSearchFilter] = useState<FeedFilter>({ kind: 'all' });
   // Debounce keystrokes into debouncedQuery; too-short queries stop the search immediately.
   useEffect(() => {
     const q = normalizeQuery(rawQuery);
@@ -298,12 +299,24 @@ export default function HomeRoute() {
     if (q === null || !articles) return [];
     return byDateDesc(articles.filter((a) => matchesQuery(a, q)));
   }, [rawQuery, articles]);
+  // The type chip narrows both the instant preview and the server results in step.
+  const shownLocalMatches = useMemo(
+    () => applyFeedFilter(localMatches, searchFilter),
+    [localMatches, searchFilter],
+  );
+  const shownResults = useMemo(
+    () => (results ? applyFeedFilter(results, searchFilter) : null),
+    [results, searchFilter],
+  );
   // The keyboard's Search key skips the debounce wait.
   const submitSearch = () => {
     const q = normalizeQuery(rawQuery);
     if (q !== null) setDebouncedQuery(q);
   };
-  const clearSearch = () => setRawQuery('');
+  const clearSearch = () => {
+    setRawQuery('');
+    setSearchFilter({ kind: 'all' });
+  };
 
   // The tier that currently unlocks bodies (null unless an active/trialing subscription). Drives
   // the instant lock badges; the wp-articles edge function re-verifies the same rule server-side.
@@ -318,6 +331,9 @@ export default function HomeRoute() {
   );
   const sectioned = matched.length > 0;
   const sortedMatched = useMemo(() => byDateDesc(matched), [matched]);
+  // Backdrop for the photographic "Today" hero card: the member's top dosha pick, else the
+  // latest feed image. null (no imagery yet) falls back to the flat navy card.
+  const todayHeroImage = (hasDosha ? sortedMatched[0]?.image : null) ?? articles?.[0]?.image ?? null;
   /** The chip-filterable pool: the More section when sectioned, else the whole feed. */
   const restPool = useMemo(() => {
     if (!articles) return null;
@@ -357,26 +373,33 @@ export default function HomeRoute() {
   return (
     <Screen padding={0}>
       {/* Hero */}
-      <View style={{ backgroundColor: colors.blue, paddingHorizontal: 24, paddingTop: 28, paddingBottom: 32 }}>
+      <View
+        style={{
+          backgroundColor: colors.blue,
+          paddingHorizontal: rhythm.screenX,
+          paddingTop: rhythm.heroTop,
+          paddingBottom: rhythm.heroBottom,
+        }}
+      >
         {/* No onBack -> wordmark left; the default right slot is the account avatar. */}
         <AppHeader dark />
         {/* AppHeader owns 20px of the gap; 4 more keeps the hero rhythm at the original 24. */}
         <Eyebrow light color={colors.blueLight} style={{ marginTop: 4 }}>
           {`${greeting()}, ${first}`}
         </Eyebrow>
-        <Heading dark size={30} style={{ marginTop: 8 }}>
+        <Heading dark size={34} style={{ marginTop: 8 }}>
           {hasDosha ? (
             <>
-              Your{' '}
-              <Text italic style={{ color: d.accent, fontSize: 30, lineHeight: 35 }}>
+              Your day in{' '}
+              <Text italic style={{ color: d.accent, fontSize: 34, lineHeight: 40 }}>
                 {d.name}
               </Text>{' '}
-              day begins
+              begins
             </>
           ) : (
             <>
               Your day{' '}
-              <Text italic style={{ color: colors.blueLight, fontSize: 30, lineHeight: 35 }}>
+              <Text italic style={{ color: colors.blueLight, fontSize: 34, lineHeight: 40 }}>
                 begins
               </Text>
             </>
@@ -384,7 +407,7 @@ export default function HomeRoute() {
         </Heading>
       </View>
 
-      <View style={{ padding: 24, gap: 20 }}>
+      <View style={{ padding: rhythm.screenX, gap: rhythm.section }}>
         {/* Dosha-quiz nudge (dismissible) */}
         {showQuizNudge ? (
           <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.blueLight, padding: 18 }}>
@@ -413,20 +436,77 @@ export default function HomeRoute() {
           </View>
         ) : null}
 
-        {/* Today teaser → the dosha content landing */}
-        <View>
-          <Eyebrow style={{ marginBottom: 8 }}>{hasDosha ? `Today, for your ${d.name}` : 'Today'}</Eyebrow>
-          <Pressable onPress={() => router.push('/today')} accessibilityRole="button" accessibilityLabel="Open today">
-            <Card>
-              <Text style={{ color: colors.blue, fontSize: 15, lineHeight: 23 }}>
-                {hasDosha
-                  ? focusText
-                  : 'Your rituals and recipes appear here once you’ve found your dosha.'}
+        {/* Quick actions — quiet rounded tiles into the member's key surfaces. */}
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          {[
+            { label: 'Today', onPress: () => router.push('/today') },
+            { label: 'Favorites', onPress: () => router.push('/favorites') },
+            { label: 'Membership', onPress: () => router.push('/membership') },
+            { label: 'Profile', onPress: () => router.push('/account') },
+          ].map((it) => (
+            <Pressable
+              key={it.label}
+              onPress={it.onPress}
+              accessibilityRole="button"
+              accessibilityLabel={it.label}
+              style={{
+                flex: 1,
+                alignItems: 'center',
+                backgroundColor: colors.white,
+                borderWidth: 1,
+                borderColor: colors.gray,
+                borderRadius: radii.media,
+                paddingVertical: 16,
+                ...elevation.card,
+              }}
+            >
+              <View
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: 3,
+                  backgroundColor: hasDosha ? d.accent : colors.blueLight,
+                  marginBottom: 8,
+                }}
+              />
+              <Text
+                italic
+                numberOfLines={1}
+                style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: colors.blue }}
+              >
+                {it.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {/* Today teaser → the dosha content landing. A photographic hero card: focus copy
+            over the member's top pick, on a scrim for legibility. Falls back to flat navy. */}
+        <Pressable onPress={() => router.push('/today')} accessibilityRole="button" accessibilityLabel="Open today">
+          <View style={{ borderRadius: radii.media, overflow: 'hidden', backgroundColor: colors.blue, ...elevation.card }}>
+            {todayHeroImage ? (
+              <Image
+                source={{ uri: todayHeroImage }}
+                style={{ width: '100%', height: 220 }}
+                contentFit="cover"
+                transition={150}
+                accessibilityIgnoresInvertColors
+              />
+            ) : (
+              <View style={{ width: '100%', height: 160 }} />
+            )}
+            <GradientScrim />
+            <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: 20 }}>
+              <Eyebrow color={colors.blueLight} style={{ marginBottom: 8 }}>
+                {hasDosha ? `Today, for your ${d.name}` : 'Today'}
+              </Eyebrow>
+              <Text style={{ color: colors.white, fontSize: 16, lineHeight: 24 }}>
+                {hasDosha ? focusText : 'Your rituals and recipes appear here once you’ve found your dosha.'}
               </Text>
               <Text
                 italic
                 style={{
-                  color: colors.blueBright,
+                  color: colors.blueLight,
                   fontSize: 13,
                   marginTop: 12,
                   letterSpacing: 0.5,
@@ -435,9 +515,9 @@ export default function HomeRoute() {
               >
                 See today →
               </Text>
-            </Card>
-          </Pressable>
-        </View>
+            </View>
+          </View>
+        </Pressable>
 
         {/* Latest from Lentine — real posts + recipes pulled from WordPress. Items matching
             the member's dosha lead in their own flagged section; the rest goes compact. */}
@@ -446,13 +526,34 @@ export default function HomeRoute() {
               hero's "Your day begins". Hidden during search (the results get their own label). */}
           {!searchMode ? (
             <Heading size={22} style={{ marginBottom: 12 }}>
-              Latest
+              Latest from Lentine
             </Heading>
           ) : null}
           <SearchBar value={rawQuery} onChangeText={setRawQuery} onSubmit={submitSearch} onClear={clearSearch} />
           {searchMode ? (
             <>
-              <Eyebrow style={{ marginBottom: 8 }}>Search results</Eyebrow>
+              <Eyebrow style={{ marginBottom: rhythm.label }}>Search results</Eyebrow>
+              {results && results.length > 0 ? (
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+                  <Chip
+                    label="All"
+                    selected={searchFilter.kind === 'all'}
+                    a11y="Show all results"
+                    onPress={() => setSearchFilter({ kind: 'all' })}
+                  />
+                  {SEARCH_TYPE_VALUES.map((v) => (
+                    <Chip
+                      key={v.label}
+                      label={v.label}
+                      selected={sameFilter(searchFilter, v.filter)}
+                      a11y={`Show ${v.label} only`}
+                      onPress={() =>
+                        setSearchFilter((cur) => (sameFilter(cur, v.filter) ? { kind: 'all' } : v.filter))
+                      }
+                    />
+                  ))}
+                </View>
+              ) : null}
               {searchFailed ? (
                 <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18 }}>
                   <Text style={{ color: fg.secondary, fontSize: 14, lineHeight: 21 }}>
@@ -467,13 +568,13 @@ export default function HomeRoute() {
                 </View>
               ) : results === null ? (
                 <>
-                  {localMatches.length > 0 ? (
+                  {shownLocalMatches.length > 0 ? (
                     <>
-                      <Eyebrow color={colors.blueBright} style={{ marginBottom: 8 }}>
+                      <Eyebrow color={colors.blueBright} style={{ marginBottom: rhythm.label }}>
                         From the latest
                       </Eyebrow>
                       <View style={{ gap: 14, marginBottom: 16 }}>
-                        {localMatches.map((a) => (
+                        {shownLocalMatches.map((a) => (
                           <ArticleCard
                             key={a.id}
                             article={a}
@@ -488,21 +589,21 @@ export default function HomeRoute() {
                     Searching the whole catalog…
                   </Text>
                   <View style={{ gap: 14 }}>
-                    {Array.from({ length: localMatches.length > 0 ? 1 : 3 }, (_, i) => (
+                    {Array.from({ length: shownLocalMatches.length > 0 ? 1 : 3 }, (_, i) => (
                       <SkeletonCard key={i} />
                     ))}
                   </View>
                 </>
-              ) : results.length === 0 ? (
+              ) : (shownResults ?? []).length === 0 ? (
                 <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18 }}>
                   <Text style={{ color: fg.secondary, fontSize: 14, lineHeight: 21 }}>
-                    No matches for that search.
+                    {searchFilter.kind === 'all' ? 'No matches for that search.' : 'No matches of that type.'}
                   </Text>
                   <Button label="Clear search" size="sm" onPress={clearSearch} style={{ marginTop: 12 }} />
                 </View>
               ) : (
                 <View style={{ gap: 14 }}>
-                  {results.map((a) => (
+                  {(shownResults ?? []).map((a) => (
                     <ArticleCard
                       key={a.id}
                       article={a}
@@ -532,22 +633,53 @@ export default function HomeRoute() {
             <>
               {sectioned ? (
                 <>
-                  <Eyebrow color={d.accent} style={{ marginBottom: 8 }}>
-                    {`For your ${d.name}`}
-                  </Eyebrow>
-                  <View style={{ gap: 14 }}>
-                    {sortedMatched.map((a) => (
-                      <ArticleCard
-                        key={a.id}
-                        article={a}
-                        locked={!canAccess(a, tier)}
-                        flag={{ label: 'For you', color: d.accent }}
-                        onPress={() => openArticle(a)}
-                      />
-                    ))}
-                  </View>
+                  {/* The top pick already headlines the photographic hero above, so the carousel
+                      shows the rest — no repeated photo. Bleeds to the screen edges, first aligned. */}
+                  {sortedMatched.length > 1 ? (
+                    <>
+                      <Eyebrow color={d.accent} style={{ marginBottom: rhythm.label }}>
+                        {`For your ${d.name}`}
+                      </Eyebrow>
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={{ marginHorizontal: -rhythm.screenX }}
+                        contentContainerStyle={{ gap: 14, paddingHorizontal: rhythm.screenX }}
+                      >
+                        {sortedMatched.slice(1, 9).map((a) => (
+                          <View key={a.id} style={{ width: 280 }}>
+                            <ArticleCard
+                              article={a}
+                              variant="featured"
+                              locked={!canAccess(a, tier)}
+                              flag={{ label: 'For you', color: d.accent }}
+                              onPress={() => openArticle(a)}
+                            />
+                          </View>
+                        ))}
+                      </ScrollView>
+                      <Pressable
+                        onPress={() => router.push('/today')}
+                        accessibilityRole="button"
+                        accessibilityLabel={`See all your ${d.name} picks`}
+                        style={{ marginTop: 12 }}
+                      >
+                        <Text
+                          italic
+                          style={{
+                            color: colors.blueBright,
+                            fontSize: 13,
+                            letterSpacing: 0.5,
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          See all your {d.name} picks →
+                        </Text>
+                      </Pressable>
+                    </>
+                  ) : null}
                   {restPool.length > 0 ? (
-                    <Eyebrow style={{ marginTop: 24, marginBottom: 8 }}>More from Lentine</Eyebrow>
+                    <Eyebrow style={{ marginTop: rhythm.section, marginBottom: rhythm.label }}>More from Lentine</Eyebrow>
                   ) : null}
                 </>
               ) : null}

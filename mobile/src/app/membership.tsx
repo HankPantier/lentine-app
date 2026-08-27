@@ -6,7 +6,7 @@ import { formatLongDate } from '@/lib/format';
 import { SITE_URL, TIER_NAME } from '@/onboarding/pricing';
 import { useOnboarding } from '@/onboarding/state';
 import { progress } from '@/onboarding/steps';
-import { colors, fg } from '@/theme/tokens';
+import { colors, elevation, fg, rhythm } from '@/theme/tokens';
 
 interface PlanDef {
   eyebrow: string;
@@ -110,8 +110,8 @@ export default function MembershipRoute() {
       </Heading>
 
       {sub ? (
-        <View style={{ backgroundColor: colors.blue, padding: 18, marginBottom: 20 }}>
-          <Eyebrow light color={colors.blueLight} style={{ marginBottom: 6 }}>
+        <View style={{ backgroundColor: colors.blue, padding: rhythm.card, marginBottom: rhythm.section, ...elevation.card }}>
+          <Eyebrow light color={colors.blueLight} style={{ marginBottom: rhythm.label }}>
             Active plan
           </Eyebrow>
           <Text weight="semibold" style={{ color: colors.white, fontSize: 17 }}>
@@ -140,11 +140,19 @@ export default function MembershipRoute() {
       </View>
 
       {!sub ? (
-        <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18, marginTop: 20 }}>
-          <Eyebrow color={colors.blueBright} style={{ marginBottom: 6 }}>
+        <View
+          style={{
+            backgroundColor: colors.white,
+            borderWidth: 1,
+            borderColor: colors.gray,
+            padding: rhythm.card,
+            marginTop: rhythm.section,
+          }}
+        >
+          <Eyebrow color={colors.blueBright} style={{ marginBottom: rhythm.label }}>
             Ready to join?
           </Eyebrow>
-          <Text style={{ color: fg.secondary, fontSize: 14, lineHeight: 21 }}>
+          <Text style={{ color: fg.secondary, fontSize: 14, lineHeight: 22 }}>
             {Platform.OS === 'ios'
               ? 'In-app membership is coming soon. Today, membership is managed on lentinealexis.com.'
               : 'In-app membership is coming soon. Today, membership is available on lentinealexis.com.'}

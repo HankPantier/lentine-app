@@ -20,7 +20,7 @@ import { isFavorited, toFavoriteEntry, toggleFavorite } from '@/lib/favorites-en
 import { formatLongDate } from '@/lib/format';
 import { persistFavorites } from '@/lib/profile';
 import { useOnboarding } from '@/onboarding/state';
-import { colors, fg, fonts } from '@/theme/tokens';
+import { colors, elevation, fg, fonts, radii, rhythm } from '@/theme/tokens';
 
 // Shared RenderHtml config, hoisted so a split recipe body (intro + recipe blocks) renders
 // with exactly the same styling as a single-block article.
@@ -38,8 +38,8 @@ const TAGS_STYLES: MixedStyleRecord = {
   strong: { fontFamily: fonts.bold },
   em: { fontFamily: fonts.italic },
   li: { lineHeight: 26 },
-  // Give inline photos breathing room — bottom is 2x the top.
-  img: { marginTop: 16, marginBottom: 32 },
+  // Give inline photos breathing room — bottom is 2x the top — and soften their corners.
+  img: { marginTop: 16, marginBottom: 32, borderRadius: radii.media },
 };
 
 // Recipe section panels: each assembled <h3> section (Ingredients, Instructions, Notes…) is
@@ -73,8 +73,8 @@ function MembersOnlyPanel({ item }: { item: Article }) {
   const router = useRouter();
   const { state, update } = useOnboarding();
   return (
-    <View style={{ backgroundColor: colors.blue, padding: 18, marginTop: 20 }}>
-      <Eyebrow light color={colors.blueLight} style={{ marginBottom: 6 }}>
+    <View style={{ backgroundColor: colors.blue, padding: rhythm.card, marginTop: rhythm.section, ...elevation.card }}>
+      <Eyebrow light color={colors.blueLight} style={{ marginBottom: rhythm.label }}>
         Members only
       </Eyebrow>
       <Text style={{ color: colors.white, fontSize: 15, lineHeight: 23 }}>
@@ -252,7 +252,16 @@ export default function ArticleRoute() {
         <Image
           source={{ uri: summary.image }}
           // The metadata band docks flush under the image, like the site's hero → band flow.
-          style={{ width: '100%', height: 200, marginBottom: hasMetaBand ? 0 : 18 }}
+          // Corners soften (hybrid radius): the image rounds its bottom only when no band follows.
+          style={{
+            width: '100%',
+            height: 200,
+            marginBottom: hasMetaBand ? 0 : 18,
+            borderTopLeftRadius: radii.media,
+            borderTopRightRadius: radii.media,
+            borderBottomLeftRadius: hasMetaBand ? 0 : radii.media,
+            borderBottomRightRadius: hasMetaBand ? 0 : radii.media,
+          }}
           contentFit="cover"
           transition={150}
           accessibilityIgnoresInvertColors
@@ -262,7 +271,7 @@ export default function ArticleRoute() {
         season={summary.season}
         dosha={summary.dosha}
         background={colors.white}
-        style={{ marginBottom: 18 }}
+        style={{ marginBottom: 18, borderBottomLeftRadius: radii.media, borderBottomRightRadius: radii.media }}
       />
 
       {summary.category ? <Eyebrow color={colors.blueBright}>{summary.category}</Eyebrow> : null}

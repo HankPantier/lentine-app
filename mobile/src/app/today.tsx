@@ -8,15 +8,15 @@ import { type Article, type Foundations, fetchFoundations, fetchToday } from '@/
 import { canAccess, entitledTier } from '@/lib/entitlement';
 import { useOnboarding } from '@/onboarding/state';
 import { DOSHA } from '@/quiz/doshas';
-import { colors, fg } from '@/theme/tokens';
+import { colors, fg, rhythm } from '@/theme/tokens';
 
 function ContentCard({ item }: { item: ContentItem }) {
   return (
-    <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18 }}>
+    <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: rhythm.card }}>
       <Text weight="semibold" style={{ fontSize: 17, color: colors.blue }}>
         {item.title}
       </Text>
-      <Text style={{ color: fg.secondary, fontSize: 13, marginTop: 4 }}>{item.meta}</Text>
+      <Text style={{ color: fg.secondary, fontSize: 13, lineHeight: 20, marginTop: 4 }}>{item.meta}</Text>
     </View>
   );
 }
@@ -98,14 +98,21 @@ export default function TodayRoute() {
   return (
     <Screen padding={0}>
       {/* Hero */}
-      <View style={{ backgroundColor: colors.blue, paddingHorizontal: 24, paddingTop: 28, paddingBottom: 32 }}>
+      <View
+        style={{
+          backgroundColor: colors.blue,
+          paddingHorizontal: rhythm.screenX,
+          paddingTop: rhythm.heroTop,
+          paddingBottom: rhythm.heroBottom,
+        }}
+      >
         <AppHeader onBack={() => router.back()} dark />
         <Eyebrow light color={colors.blueLight}>
           {`For your ${d.name}`}
         </Eyebrow>
-        <Heading dark size={30} style={{ marginTop: 8 }}>
+        <Heading dark size={34} style={{ marginTop: 8 }}>
           Today,{' '}
-          <Text italic style={{ color: d.accent, fontSize: 30, lineHeight: 35 }}>
+          <Text italic style={{ color: d.accent, fontSize: 34, lineHeight: 40 }}>
             for you
           </Text>
         </Heading>
@@ -114,20 +121,20 @@ export default function TodayRoute() {
         </Text>
       </View>
 
-      <View style={{ padding: 24, gap: 20 }}>
+      <View style={{ padding: rhythm.screenX, gap: rhythm.section }}>
         <View>
-          <Eyebrow style={{ marginBottom: 8 }}>Today&rsquo;s ritual</Eyebrow>
+          <Eyebrow style={{ marginBottom: rhythm.label }}>Today&rsquo;s ritual</Eyebrow>
           <ContentCard item={content.ritual} />
         </View>
 
         <View>
-          <Eyebrow style={{ marginBottom: 8 }}>{`Made for your ${d.name}`}</Eyebrow>
+          <Eyebrow style={{ marginBottom: rhythm.label }}>{`Made for your ${d.name}`}</Eyebrow>
           <ContentCard item={content.recipe} />
         </View>
 
         {/* Real dosha-matched recipes pulled from WordPress. */}
         <View>
-          <Eyebrow style={{ marginBottom: 8 }}>{`${d.name} recipes`}</Eyebrow>
+          <Eyebrow style={{ marginBottom: rhythm.label }}>{`${d.name} recipes`}</Eyebrow>
           {recipesFailed ? (
             <View style={{ backgroundColor: colors.white, borderWidth: 1, borderColor: colors.gray, padding: 18 }}>
               <Text style={{ color: fg.secondary, fontSize: 14, lineHeight: 21 }}>
