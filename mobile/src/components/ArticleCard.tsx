@@ -1,10 +1,10 @@
+import { EvilIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Pressable, View } from 'react-native';
 import type { Article } from '@/lib/articles';
 import { colors, elevation, fg, radii, rhythm } from '@/theme/tokens';
 import { Eyebrow } from './Eyebrow';
 import { GradientScrim } from './GradientScrim';
-import { LockGlyph } from './LockGlyph';
 import { SeasonDoshaMeta } from './SeasonDoshaMeta';
 import { Text } from './Text';
 
@@ -17,7 +17,7 @@ function typeLabel(type: Article['type']): string {
 function LockBadge() {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginLeft: 8 }}>
-      <LockGlyph color={fg.tertiary} size={10} />
+      <EvilIcons name="lock" size={18} color={fg.tertiary} />
       <Text
         style={{
           fontSize: 10,
@@ -114,7 +114,7 @@ export function ArticleCard({
               borderRadius: radii.media,
             }}
           >
-            <LockGlyph color={colors.white} size={10} />
+            <EvilIcons name="lock" size={18} color={colors.white} />
             <Text style={{ fontSize: 9, letterSpacing: 0.5, textTransform: 'uppercase', color: colors.white }}>Members</Text>
           </View>
         ) : null}

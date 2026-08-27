@@ -10,7 +10,6 @@ export { Field } from './Field';
 export { GradientScrim } from './GradientScrim';
 export { Heading } from './Heading';
 export { JumpToRecipePill } from './JumpToRecipePill';
-export { LockGlyph } from './LockGlyph';
 export { OptionCard } from './OptionCard';
 export { ProgressDots } from './ProgressDots';
 export { RecipeBody } from './RecipeBody';
