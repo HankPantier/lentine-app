@@ -3,8 +3,10 @@ import * as WebBrowser from 'expo-web-browser';
 import { type ReactNode, useEffect, useState } from 'react';
 import { AppState, Platform, Pressable, View } from 'react-native';
 import { AppHeader, Button, Card, Eyebrow, Field, Heading, Screen, Text } from '@/components';
+import { deleteAccount } from '@/lib/account';
 import { MANAGE_ON_WEB_URL, manageReturnUrl, openManageSubscription } from '@/lib/billing';
 import { clearContentCache } from '@/lib/content-cache';
+import { hasActiveSubscription } from '@/lib/entitlement';
 import { formatLongDate } from '@/lib/format';
 import { fetchSubscription } from '@/lib/subscription';
 import {
@@ -77,6 +79,10 @@ function AccountBody() {
 
   const [managing, setManaging] = useState(false);
   const [manageFallback, setManageFallback] = useState(false);
+
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteErr, setDeleteErr] = useState<string | null>(null);
 
   // Portal changes land asynchronously (Stripe webhook → Supabase), so re-read the
   // subscription whenever the app regains focus — the browser sheet closing on native,
@@ -193,6 +199,22 @@ function AccountBody() {
     clearContentCache(); // cached article bodies belong to the signed-out member
     reset();
     router.replace('/');
+  };
+
+  const confirmDeleteAccount = async () => {
+    setDeleting(true);
+    setDeleteErr(null);
+    const result = await deleteAccount();
+    if (result.ok) {
+      // Server deleted the auth user; clear the now-invalid local session + all local state.
+      await supabase.auth.signOut().catch(() => {});
+      clearContentCache();
+      reset();
+      router.replace('/');
+      return;
+    }
+    setDeleting(false);
+    setDeleteErr('We couldn’t delete your account. Please try again, or contact support.');
   };
 
   return (
@@ -534,6 +556,93 @@ function AccountBody() {
       <View style={{ marginTop: 36, alignItems: 'center' }}>
         <Button label="Sign out" variant="outline" onPress={signOut} />
       </View>
+
+      {/* Delete account — Apple App Store Guideline 5.1.1(v) requires in-app deletion. */}
+      <Section title="Delete account">
+        <Card>
+          {!confirmingDelete ? (
+            <>
+              <Text style={{ color: fg.secondary, fontSize: 14, lineHeight: 21 }}>
+                Permanently delete your account and all of your data. This can’t be undone.
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setDeleteErr(null);
+                  setConfirmingDelete(true);
+                }}
+                style={{ marginTop: 14, alignSelf: 'flex-start' }}
+              >
+                <Text
+                  italic
+                  style={{
+                    color: colors.red,
+                    fontSize: 13,
+                    letterSpacing: 0.5,
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Delete my account
+                </Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Text weight="semibold" style={{ color: colors.red, fontSize: 15 }}>
+                Delete your account?
+              </Text>
+              <Text style={{ color: fg.secondary, fontSize: 14, lineHeight: 21, marginTop: 8 }}>
+                This permanently removes your profile, dosha, and saved recipes. It can’t be
+                undone.
+              </Text>
+              {hasActiveSubscription(sub) ? (
+                <Text style={{ color: fg.secondary, fontSize: 14, lineHeight: 21, marginTop: 8 }}>
+                  Deleting your account here won’t cancel your paid membership — manage or cancel
+                  billing on lentinealexis.com first.
+                </Text>
+              ) : null}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 16 }}>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={deleting}
+                  onPress={confirmDeleteAccount}
+                  style={{
+                    backgroundColor: colors.red,
+                    borderRadius: 2,
+                    paddingVertical: 12,
+                    paddingHorizontal: 22,
+                    opacity: deleting ? 0.32 : 1,
+                  }}
+                >
+                  <Text
+                    italic
+                    style={{
+                      color: colors.white,
+                      fontSize: 13,
+                      letterSpacing: 0.5,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {deleting ? 'Deleting…' : 'Permanently delete'}
+                  </Text>
+                </Pressable>
+                <Button
+                  label="Cancel"
+                  variant="plain"
+                  size="sm"
+                  disabled={deleting}
+                  onPress={() => setConfirmingDelete(false)}
+                />
+              </View>
+              {deleteErr ? (
+                <Text italic style={{ color: colors.red, fontSize: 12, marginTop: 12, lineHeight: 18 }}>
+                  {deleteErr}
+                </Text>
+              ) : null}
+            </>
+          )}
+        </Card>
+      </Section>
     </Screen>
   );
 }
