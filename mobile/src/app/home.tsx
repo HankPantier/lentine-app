@@ -473,7 +473,7 @@ export default function HomeRoute() {
               <Text
                 italic
                 numberOfLines={1}
-                style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: colors.blue }}
+                style={{ fontSize: 10, letterSpacing: 0.5, textTransform: 'uppercase', color: colors.blue }}
               >
                 {it.label}
               </Text>
