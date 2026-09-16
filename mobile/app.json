@@ -41,6 +41,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c1b8710e-93e2-4823-bfad-70e891de5c6f"
+      }
+    },
+    "owner": "webhank"
   }
 }
