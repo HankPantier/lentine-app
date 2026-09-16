@@ -45,18 +45,12 @@ npx eas init
 This creates the project on Expo's servers and writes `extra.eas.projectId` + `owner` into
 `app.json`. Commit that change.
 
-### 1.2 Fill in the production environment
-`eas.json` ships with placeholder env values. Replace them with the **production** Supabase
-credentials in both the `preview` and `production` build profiles:
-
-```jsonc
-"env": {
-  "EXPO_PUBLIC_SUPABASE_URL": "https://<your-prod>.supabase.co",
-  "EXPO_PUBLIC_SUPABASE_ANON_KEY": "<prod anon key>"
-}
-```
-The anon key is a public client key, so committing it is acceptable. (If you prefer, use
-`npx eas env:create` to store them as EAS environment variables instead of inline.)
+### 1.2 Production environment — DONE
+The `preview` and `production` build profiles in `eas.json` are already pointed at the
+`cnarqxhknjtqaovmzsco` Supabase project (the one holding the migrated subscribers + the deployed
+`delete-account` fn). The anon key is a public client key, so committing it is fine. If you ever
+move to a separate prod project, swap `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+in both build profiles (or use `npx eas env:create` to store them as EAS env vars).
 
 ### 1.3 Set up signing credentials (EAS manages them for you)
 ```bash
@@ -90,8 +84,12 @@ Confirm each before building the production binary. Status as of the packaging p
       designer's sign-off if desired.
 - [ ] **Store screenshots** — still needed; they require a real build. Capture from the preview
       build on the required simulators/devices (sizes in §3/§4). **Blocked on the first EAS build.**
-- [ ] **Demo/review account** — create a permanent test **subscriber** login (see recipe below)
-      and put the credentials in the App Store Connect review notes.
+- [x] **Demo/review account** — **DONE**. A permanent subscriber `appreview@lentinealexis.com`
+      exists in `cnarqxhknjtqaovmzsco` at the top tier (`back_to_forward`, active); verified it
+      signs in and unlocks a paid recipe (`locked:false`, real body). **Paste its password (given
+      to you when it was created) into the App Store Connect App Review notes + Play testing
+      instructions.** The password is resettable and the account is deletable via the app's own
+      delete flow.
 - [x] **Privacy policy + support URLs** — confirmed live:
   - Privacy: `https://lentinealexis.com/privacy-policy/`
   - Support/contact: `https://lentinealexis.com/inquiry/`
